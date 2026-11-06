@@ -3,6 +3,12 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/), versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.3.5]
+### Added
+- Live preview in the card picker (`preview: true`). The default configuration now uses a real entity and a rule that matches it, so the frame is visible right away.
+### Fixed
+- The "Title" field of the card editor lost its value right after typing. The title is now saved (`title`) and shown above the cards like in a stack card.
+  
 ## [0.3.4]
 ### Changed
 - README: installation leads with search in HACS / Marketplace, custom repository is the fallback.
