@@ -1,10 +1,69 @@
 /*!
- * Status Frame Card v0.2.0
+ * Status Frame Card v0.3.4
  * Wrapper-Karte: legt einen regelbasierten Rahmen/Glow/Animation über eine
  * beliebige andere Lovelace-Karte, ohne deren Größe zu verändern.
- * Konfiguration komplett über den grafischen Editor (YAML optional).
+ * Mehrere Karten wie bei einer Stapelkarte (cards + stack), Konfiguration komplett über den Editor.
  */
-const SFC_VERSION = "0.2.0";
+const SFC_VERSION = "0.3.4";
+
+/* Registrierung für den Kartenwähler ganz am Anfang: Der Eintrag existiert auch dann,
+   wenn weiter unten etwas schiefgeht, und wird bei doppeltem Laden nicht verdoppelt. */
+window.customCards = window.customCards || [];
+if (!window.customCards.some((c) => c.type === "status-frame-card")) {
+  window.customCards.push({
+    type: "status-frame-card",
+    name: "Status Frame Card",
+    description: "Regelbasierter Rahmen, Glow und Animation um jede beliebige Karte.",
+    preview: false,
+    // Neuer Kartenwähler (HA 2026.6+): erscheint unter "Community", sobald eine passende Entität gewählt wird
+    getEntitySuggestion: (hass, entityId) => {
+      const domain = entityId.split(".")[0];
+      const dc = hass.states[entityId]?.attributes?.device_class;
+      const frame = (cards, rules) => ({
+        type: "custom:status-frame-card",
+        cards,
+        rules,
+      });
+
+      // Variante 1: nur diese Entität
+      let rule = null;
+      if (["light", "switch", "input_boolean", "fan"].includes(domain))
+        rule = { state: "on", color: "#ffea00", glow: 12 };
+      else if (domain === "binary_sensor")
+        rule = { state: "on", color: "#ff0000", animation: "pulse" };
+      else if (domain === "sensor" && dc === "battery")
+        rule = { below: 20, color: "#ff4d4d", glow: 12 };
+      if (!rule) return null;
+      const single = {
+        config: frame([{ type: "tile", entity: entityId }], [{ entities: [entityId], ...rule }]),
+      };
+
+      // Variante 2: der ganze Bereich der Entität (Area-Karte mit Regeln für den Bereich)
+      const ent = hass.entities?.[entityId];
+      const areaId = ent?.area_id || hass.devices?.[ent?.device_id]?.area_id;
+      const area = areaId ? hass.areas?.[areaId] : null;
+      if (!area) return single;
+      const areaCard = { type: "area", area: areaId };
+      if (area.picture) areaCard.display_type = "picture";
+      const areaVariant = {
+        config: frame([areaCard], [
+          { name: "Rauch", area: areaId, domain: "binary_sensor", device_class: "smoke", state: "on",
+            color: "#ff0000", animation: "pulse", speed: 1, background: "rgba(255,0,0,.2)" },
+          { name: "Batterie leer", area: areaId, domain: "sensor", device_class: "battery", below: 10,
+            color: "#ff0000", animation: "pulse" },
+          { name: "Batterie schwach", area: areaId, domain: "sensor", device_class: "battery", below: 20,
+            color: "#ff4d4d", glow: 12 },
+          { name: "Licht an", area: areaId, domain: "light", state: "on", color: "#ffea00", glow: 12 },
+        ]),
+      };
+      return [
+        { ...single, label: "Entität" },
+        { ...areaVariant, label: "Bereich " + (area.name || areaId) },
+      ];
+    },
+    documentationURL: "https://github.com/ManueltheMighty/Status-frame-card",
+  });
+}
 
 const has = (v) =>
   v !== undefined && v !== null && v !== "" && !(typeof v === "number" && isNaN(v));
@@ -30,7 +89,7 @@ class StatusFrameCard extends HTMLElement {
 
   static getStubConfig() {
     return {
-      card: { type: "markdown", content: "Umschlossene Karte im Editor ersetzen" },
+      cards: [{ type: "markdown", content: "Umschlossene Karten im Editor ersetzen" }],
       rules: [{ domain: "light", state: "on", color: "#ffea00", glow: 12 }],
     };
   }
@@ -56,12 +115,17 @@ class StatusFrameCard extends HTMLElement {
         </style>
         <div id="wrap"><div id="fx"></div></div>`;
     }
-    const key = JSON.stringify(config.card || null);
+    const key = JSON.stringify([this._cards(config), config.stack || "vertical"]);
     if (key !== this._cardKey) {
       this._cardKey = key;
       this._buildInner(key);
     }
     this._update();
+  }
+
+  _cards(config) {
+    if (Array.isArray(config.cards)) return config.cards;
+    return config.card ? [config.card] : []; // Abwärtskompatibel zu v0.2
   }
 
   async _buildInner(key) {
@@ -70,17 +134,21 @@ class StatusFrameCard extends HTMLElement {
       this._inner.remove();
       this._inner = null;
     }
-    const cfg = this._config.card;
-    if (!cfg || !cfg.type) {
+    const cards = this._cards(this._config);
+    if (!cards.length || !cards[0].type) {
       const ph = document.createElement("div");
       ph.className = "ph";
-      ph.textContent = "Status Frame Card: bitte eine Karte wählen";
+      ph.textContent = "Status Frame Card: bitte Karten wählen";
       this._inner = ph;
       wrap.prepend(ph);
       return;
     }
     const helpers = await window.loadCardHelpers();
     if (key !== this._cardKey) return; // inzwischen veraltet
+    const cfg =
+      cards.length === 1
+        ? cards[0]
+        : { type: this._config.stack === "horizontal" ? "horizontal-stack" : "vertical-stack", cards };
     const el = helpers.createCardElement(cfg);
     if (this._hass) el.hass = this._hass;
     this._inner = el;
@@ -159,7 +227,7 @@ class StatusFrameCard extends HTMLElement {
     return this._inner?.getLayoutOptions?.() || {};
   }
 }
-customElements.define("status-frame-card", StatusFrameCard);
+if (!customElements.get("status-frame-card")) customElements.define("status-frame-card", StatusFrameCard);
 
 /* ------------------------------------------------------------------ */
 /* Editor                                                              */
@@ -184,6 +252,7 @@ const LABELS = {
   speed: "Dauer (s)",
   background: "Hintergrund",
   default_border: "Standard-Rahmen (CSS, optional)",
+  stack: "Anordnung bei mehreren Karten",
 };
 
 const HELPERS = {
@@ -272,29 +341,51 @@ const SCHEMA_EFFECT = [
   { name: "background", selector: { text: {} } },
 ];
 
-const SCHEMA_GENERAL = [{ name: "default_border", selector: { text: {} } }];
+const SCHEMA_GENERAL = [
+  {
+    name: "stack",
+    selector: {
+      select: {
+        mode: "dropdown",
+        options: [
+          { value: "vertical", label: "Untereinander" },
+          { value: "horizontal", label: "Nebeneinander" },
+        ],
+      },
+    },
+  },
+  { name: "default_border", selector: { text: {} } },
+];
 
 class StatusFrameCardEditor extends HTMLElement {
   setConfig(config) {
     this._config = config || {};
     if (JSON.stringify(config) === this._lastEmitted && this._built) return; // eigene Änderung
-    this._build();
+    try {
+      this._build();
+    } catch (err) {
+      console.error("[status-frame-card] Editor-Fehler:", err);
+      this.innerHTML = `<p style="color:var(--error-color)"><b>Status Frame Card: Editor konnte nicht aufgebaut werden.</b><br>${String(
+        (err && err.message) || err
+      )}<br>Bitte die Browser-Konsole prüfen. Die Karte selbst läuft weiter, Konfiguration per YAML.</p>`;
+    }
   }
 
   set hass(hass) {
     this._hass = hass;
-    this.querySelectorAll("ha-form, hui-card-element-editor, hui-card-picker").forEach((el) => (el.hass = hass));
+    this.querySelectorAll("ha-form, hui-stack-card-editor").forEach((el) => (el.hass = hass));
   }
   set lovelace(l) {
     this._lovelace = l;
-    this.querySelectorAll("hui-card-element-editor, hui-card-picker").forEach((el) => (el.lovelace = l));
+    this.querySelectorAll("hui-stack-card-editor").forEach((el) => (el.lovelace = l));
   }
 
   /* ---------- Aufbau ---------- */
 
   _build() {
     this._built = true;
-    this._card = this._config.card;
+    this._cards = this._config.cards || (this._config.card ? [this._config.card] : []);
+    this._stack = this._config.stack;
     this._rules = (this._config.rules || []).map((r) => ({ ...r }));
     this._defaultBorder = this._config.default_border;
     this._openIdx = null;
@@ -323,7 +414,7 @@ class StatusFrameCardEditor extends HTMLElement {
                          background:var(--card-background-color); color:var(--primary-text-color); font:inherit; }
       </style>
       <div class="sfc">
-        <h3>Umschlossene Karte</h3>
+        <h3>Umschlossene Karten</h3>
         <div id="cardbox"></div>
         <h3>Regeln</h3>
         <p class="hint">Reihenfolge = Priorität: die erste passende Regel gewinnt. Wichtiges nach oben.</p>
@@ -340,10 +431,15 @@ class StatusFrameCardEditor extends HTMLElement {
       this._emit();
     });
 
-    const gen = this._form(SCHEMA_GENERAL, { default_border: this._defaultBorder }, (v) => {
-      this._defaultBorder = v.default_border;
-      this._emit();
-    });
+    const gen = this._form(
+      SCHEMA_GENERAL,
+      { stack: this._stack, default_border: this._defaultBorder },
+      (v) => {
+        this._stack = v.stack;
+        this._defaultBorder = v.default_border;
+        this._emit();
+      }
+    );
     this.querySelector("#general").append(gen);
 
     this._renderCardBox();
@@ -367,7 +463,9 @@ class StatusFrameCardEditor extends HTMLElement {
   _emit() {
     const cfg = clean({
       ...this._config,
-      card: this._card,
+      card: undefined,
+      cards: this._cards,
+      stack: this._stack,
       rules: this._rules.map(clean),
       default_border: this._defaultBorder,
     });
@@ -378,88 +476,74 @@ class StatusFrameCardEditor extends HTMLElement {
     );
   }
 
-  /* ---------- Umschlossene Karte ---------- */
+  /* ---------- Umschlossene Karten (wie bei der Stapelkarte) ---------- */
 
-  _renderCardBox() {
+  async _renderCardBox() {
     const box = this.querySelector("#cardbox");
     box.innerHTML = "";
 
-    if (this._card && this._card.type) {
-      const bar = document.createElement("div");
-      bar.className = "cardbar";
-      const label = document.createElement("span");
-      label.textContent = "Typ: " + this._card.type;
-      const btn = document.createElement("button");
-      btn.className = "btn";
-      btn.textContent = "Karte ersetzen";
-      btn.addEventListener("click", () => {
-        this._card = undefined;
-        this._renderCardBox();
-        this._emit();
-      });
-      bar.append(label, btn);
-      box.append(bar);
-
-      if (customElements.get("hui-card-element-editor")) {
-        const ed = document.createElement("hui-card-element-editor");
-        ed.hass = this._hass;
-        ed.lovelace = this._lovelace;
-        ed.value = this._card;
-        ed.addEventListener("config-changed", (e) => {
-          e.stopPropagation(); // sonst hält HA die innere Konfig für die der Wrapper-Karte
-          if (e.detail && e.detail.config) {
-            this._card = e.detail.config;
-            this._emit();
-          }
-        });
-        box.append(ed);
-      } else {
-        const ta = document.createElement("textarea");
-        ta.value = JSON.stringify(this._card, null, 2);
-        ta.addEventListener("change", () => {
-          try {
-            this._card = JSON.parse(ta.value);
-            this._emit();
-          } catch (_) { /* ungültiges JSON ignorieren */ }
-        });
-        box.append(ta);
+    // Den Editor der Stapelkarte von HA wiederverwenden (Tabs, Kartenwähler, Verschieben, Löschen)
+    let ed = null;
+    let why = "";
+    try {
+      // HA lädt Karten bei Bedarf nach: Stapelkarte einmal erzeugen, damit sie sicher registriert ist
+      if (!customElements.get("hui-vertical-stack-card") && window.loadCardHelpers) {
+        const helpers = await window.loadCardHelpers();
+        helpers.createCardElement({ type: "vertical-stack", cards: [] });
       }
+      const Stack = await Promise.race([
+        customElements.whenDefined("hui-vertical-stack-card"),
+        new Promise((r) => setTimeout(() => r(null), 2500)),
+      ]);
+      if (Stack && Stack.getConfigElement) {
+        ed = await Stack.getConfigElement();
+        if (ed) {
+          ed.hass = this._hass;
+          ed.lovelace = this._lovelace;
+          ed.setConfig({ type: "vertical-stack", cards: this._cards });
+        }
+      } else {
+        why = "Stapelkarte nicht gefunden";
+      }
+    } catch (err) {
+      console.error("[status-frame-card] Stapel-Editor konnte nicht geladen werden:", err);
+      why = String((err && err.message) || err);
+      ed = null;
+    }
+    if (box !== this.querySelector("#cardbox")) return; // Editor wurde inzwischen neu aufgebaut
+
+    if (ed) {
+      ed.hass = this._hass;
+      ed.lovelace = this._lovelace;
+      ed.addEventListener("config-changed", (e) => {
+        e.stopPropagation(); // sonst hält HA die Stapel-Konfig für die der Wrapper-Karte
+        const c = e.detail && e.detail.config;
+        if (c && Array.isArray(c.cards)) {
+          this._cards = c.cards;
+          this._emit();
+        }
+      });
+      box.append(ed);
       return;
     }
 
-    if (customElements.get("hui-card-picker")) {
-      const p = document.createElement("hui-card-picker");
-      p.hass = this._hass;
-      p.lovelace = this._lovelace;
-      const pick = (e) => {
-        e.stopPropagation();
-        if (e.detail && e.detail.config) {
-          this._card = e.detail.config;
-          this._renderCardBox();
+    // Fallback: Kartenliste als JSON bearbeiten
+    const note = document.createElement("p");
+    note.className = "hint";
+    note.textContent = `Der HA-Stapel-Editor ist nicht verfügbar${why ? " (" + why + ")" : ""}. Karten als JSON-Liste bearbeiten:`;
+    box.append(note);
+    const ta = document.createElement("textarea");
+    ta.value = JSON.stringify(this._cards, null, 2);
+    ta.addEventListener("change", () => {
+      try {
+        const v = JSON.parse(ta.value);
+        if (Array.isArray(v)) {
+          this._cards = v;
           this._emit();
         }
-      };
-      p.addEventListener("config-changed", pick);
-      p.addEventListener("card-picked", pick);
-      box.append(p);
-    } else {
-      const row = document.createElement("div");
-      row.className = "row";
-      const inp = document.createElement("input");
-      inp.className = "txt";
-      inp.placeholder = "Kartentyp, z. B. tile, area oder custom:mushroom-entity-card";
-      const ok = document.createElement("button");
-      ok.className = "btn";
-      ok.textContent = "Übernehmen";
-      ok.addEventListener("click", () => {
-        if (!inp.value.trim()) return;
-        this._card = { type: inp.value.trim() };
-        this._renderCardBox();
-        this._emit();
-      });
-      row.append(inp, ok);
-      box.append(row);
-    }
+      } catch (_) { /* ungültiges JSON ignorieren */ }
+    });
+    box.append(ta);
   }
 
   /* ---------- Regeln ---------- */
@@ -574,15 +658,7 @@ class StatusFrameCardEditor extends HTMLElement {
     return el;
   }
 }
-customElements.define("status-frame-card-editor", StatusFrameCardEditor);
-
-window.customCards = window.customCards || [];
-window.customCards.push({
-  type: "status-frame-card",
-  name: "Status Frame Card",
-  description: "Regelbasierter Rahmen, Glow und Animation um jede beliebige Karte.",
-  preview: false,
-});
+if (!customElements.get("status-frame-card-editor")) customElements.define("status-frame-card-editor", StatusFrameCardEditor);
 
 console.info(
   `%c STATUS-FRAME-CARD %c v${SFC_VERSION} `,
