@@ -6,6 +6,10 @@ Eine Wrapper-Karte für Home Assistant Lovelace. Sie legt einen **regelbasierten
 
 Alles wird im **grafischen Editor** eingestellt. Keine Templates, kein card-mod nötig.
 
+<img width="540" height="386" alt="image" src="https://github.com/user-attachments/assets/1b66e392-7030-49df-915d-58a61fadc4fb" />
+<img width="219" height="205" alt="image" src="https://github.com/user-attachments/assets/ed4c2b01-1fdf-4c9b-9410-77f067864045" />
+
+
 ## Funktionen
 
 - Umschließt eine oder mehrere Karten, ausgewählt wie bei einer Stapelkarte (untereinander oder nebeneinander).
