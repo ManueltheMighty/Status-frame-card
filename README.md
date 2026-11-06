@@ -6,6 +6,10 @@ A wrapper card for Home Assistant Lovelace. It puts a **rule-based frame, glow, 
 
 Everything is configured in the **visual editor**. No templates, no card-mod needed.
 
+<img width="540" height="386" alt="image" src="https://github.com/user-attachments/assets/5ac285a3-53d2-446c-bd9b-41010cd3801b" />
+<img width="219" height="205" alt="image" src="https://github.com/user-attachments/assets/756dd1e2-62ab-48f9-b671-3ae890a40429" />
+
+
 ## Features
 
 - Wraps one or several cards, chosen like in a stack card (vertical or horizontal).
