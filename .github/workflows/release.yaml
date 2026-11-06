@@ -9,9 +9,9 @@ permissions:
 
 jobs:
   upload:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Attach card file to the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
