@@ -1,10 +1,10 @@
 /*!
- * Status Frame Card v0.3.4
+ * Status Frame Card v0.3.6
  * Wrapper-Karte: legt einen regelbasierten Rahmen/Glow/Animation über eine
  * beliebige andere Lovelace-Karte, ohne deren Größe zu verändern.
  * Mehrere Karten wie bei einer Stapelkarte (cards + stack), Konfiguration komplett über den Editor.
  */
-const SFC_VERSION = "0.3.4";
+const SFC_VERSION = "0.3.6";
 
 /* Registrierung für den Kartenwähler ganz am Anfang: Der Eintrag existiert auch dann,
    wenn weiter unten etwas schiefgeht, und wird bei doppeltem Laden nicht verdoppelt. */
@@ -14,7 +14,7 @@ if (!window.customCards.some((c) => c.type === "status-frame-card")) {
     type: "status-frame-card",
     name: "Status Frame Card",
     description: "Regelbasierter Rahmen, Glow und Animation um jede beliebige Karte.",
-    preview: false,
+    preview: true, // Live-Vorschau der Karte im Kartenwähler (nutzt getStubConfig)
     // Neuer Kartenwähler (HA 2026.6+): erscheint unter "Community", sobald eine passende Entität gewählt wird
     getEntitySuggestion: (hass, entityId) => {
       const domain = entityId.split(".")[0];
@@ -87,10 +87,22 @@ class StatusFrameCard extends HTMLElement {
     return document.createElement("status-frame-card-editor");
   }
 
-  static getStubConfig() {
+  /* Startkonfiguration und Vorschau im Kartenwähler: eine echte Entität, deren Zustand die Regel
+     erfüllt, damit der Rahmen in der Vorschau sofort sichtbar ist. */
+  static getStubConfig(hass, entities, entitiesFallback) {
+    const all = [...(entities || []), ...(entitiesFallback || [])];
+    const st = (id) => hass?.states?.[id]?.state;
+    const id =
+      all.find((e) => e.startsWith("light.") && st(e) === "on") ||
+      all.find((e) => e.startsWith("switch.") && st(e) === "on") ||
+      all.find((e) => e.startsWith("light.")) ||
+      all[0] ||
+      "sun.sun";
     return {
-      cards: [{ type: "markdown", content: "Umschlossene Karten im Editor ersetzen" }],
-      rules: [{ domain: "light", state: "on", color: "#ffea00", glow: 12 }],
+      cards: [{ type: "tile", entity: id }],
+      rules: [
+        { entities: [id], state: st(id) ?? "on", color: "#ffea00", glow: 12, animation: "glow" },
+      ],
     };
   }
 
@@ -115,7 +127,7 @@ class StatusFrameCard extends HTMLElement {
         </style>
         <div id="wrap"><div id="fx"></div></div>`;
     }
-    const key = JSON.stringify([this._cards(config), config.stack || "vertical"]);
+    const key = JSON.stringify([this._cards(config), config.stack || "vertical", config.title || ""]);
     if (key !== this._cardKey) {
       this._cardKey = key;
       this._buildInner(key);
@@ -145,10 +157,15 @@ class StatusFrameCard extends HTMLElement {
     }
     const helpers = await window.loadCardHelpers();
     if (key !== this._cardKey) return; // inzwischen veraltet
+    const title = has(this._config.title) ? this._config.title : undefined;
     const cfg =
-      cards.length === 1
+      cards.length === 1 && !title
         ? cards[0]
-        : { type: this._config.stack === "horizontal" ? "horizontal-stack" : "vertical-stack", cards };
+        : {
+            type: this._config.stack === "horizontal" ? "horizontal-stack" : "vertical-stack",
+            cards,
+            ...(title ? { title } : {}),
+          };
     const el = helpers.createCardElement(cfg);
     if (this._hass) el.hass = this._hass;
     this._inner = el;
@@ -386,6 +403,7 @@ class StatusFrameCardEditor extends HTMLElement {
     this._built = true;
     this._cards = this._config.cards || (this._config.card ? [this._config.card] : []);
     this._stack = this._config.stack;
+    this._title = this._config.title;
     this._rules = (this._config.rules || []).map((r) => ({ ...r }));
     this._defaultBorder = this._config.default_border;
     this._openIdx = null;
@@ -466,6 +484,7 @@ class StatusFrameCardEditor extends HTMLElement {
       card: undefined,
       cards: this._cards,
       stack: this._stack,
+      title: this._title,
       rules: this._rules.map(clean),
       default_border: this._defaultBorder,
     });
@@ -500,7 +519,7 @@ class StatusFrameCardEditor extends HTMLElement {
         if (ed) {
           ed.hass = this._hass;
           ed.lovelace = this._lovelace;
-          ed.setConfig({ type: "vertical-stack", cards: this._cards });
+          ed.setConfig({ type: "vertical-stack", cards: this._cards, title: this._title });
         }
       } else {
         why = "Stapelkarte nicht gefunden";
@@ -520,7 +539,10 @@ class StatusFrameCardEditor extends HTMLElement {
         const c = e.detail && e.detail.config;
         if (c && Array.isArray(c.cards)) {
           this._cards = c.cards;
+          this._title = c.title;
           this._emit();
+          // Wie bei HA üblich: neue Konfiguration an den Stapel-Editor zurückgeben, sonst setzt er z. B. den Titel zurück
+          ed.setConfig({ type: "vertical-stack", cards: this._cards, title: this._title });
         }
       });
       box.append(ed);
