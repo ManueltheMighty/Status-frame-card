@@ -5,7 +5,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/), versions fol
 
 ## [0.3.6]
 ### Fixed
-- Editor failed with "this._title is not a function" since 0.3.6: the new card title property had the same name as an internal method. The property is now called `_cardTitle`.
+- Editor failed with "this._title is not a function" since 0.3.5: the new card title property had the same name as an internal method. The property is now called `_cardTitle`.
   
 ## [0.3.5]
 ### Added
