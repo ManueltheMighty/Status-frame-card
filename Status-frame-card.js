@@ -403,7 +403,7 @@ class StatusFrameCardEditor extends HTMLElement {
     this._built = true;
     this._cards = this._config.cards || (this._config.card ? [this._config.card] : []);
     this._stack = this._config.stack;
-    this._title = this._config.title;
+    this._cardTitle = this._config.title;
     this._rules = (this._config.rules || []).map((r) => ({ ...r }));
     this._defaultBorder = this._config.default_border;
     this._openIdx = null;
@@ -484,7 +484,7 @@ class StatusFrameCardEditor extends HTMLElement {
       card: undefined,
       cards: this._cards,
       stack: this._stack,
-      title: this._title,
+      title: this._cardTitle,
       rules: this._rules.map(clean),
       default_border: this._defaultBorder,
     });
@@ -519,7 +519,7 @@ class StatusFrameCardEditor extends HTMLElement {
         if (ed) {
           ed.hass = this._hass;
           ed.lovelace = this._lovelace;
-          ed.setConfig({ type: "vertical-stack", cards: this._cards, title: this._title });
+          ed.setConfig({ type: "vertical-stack", cards: this._cards, title: this._cardTitle });
         }
       } else {
         why = "Stapelkarte nicht gefunden";
@@ -539,10 +539,10 @@ class StatusFrameCardEditor extends HTMLElement {
         const c = e.detail && e.detail.config;
         if (c && Array.isArray(c.cards)) {
           this._cards = c.cards;
-          this._title = c.title;
+          this._cardTitle = c.title;
           this._emit();
           // Wie bei HA üblich: neue Konfiguration an den Stapel-Editor zurückgeben, sonst setzt er z. B. den Titel zurück
-          ed.setConfig({ type: "vertical-stack", cards: this._cards, title: this._title });
+          ed.setConfig({ type: "vertical-stack", cards: this._cards, title: this._cardTitle });
         }
       });
       box.append(ed);
