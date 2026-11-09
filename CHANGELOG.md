@@ -3,6 +3,10 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/), versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.3.6]
+### Fixed
+- Editor failed with "this._title is not a function" since 0.3.6: the new card title property had the same name as an internal method. The property is now called `_cardTitle`.
+  
 ## [0.3.5]
 ### Added
 - Live preview in the card picker (`preview: true`). The default configuration now uses a real entity and a rule that matches it, so the frame is visible right away.
