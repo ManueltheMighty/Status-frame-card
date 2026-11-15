@@ -3,6 +3,10 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/), versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.4.0]
+### Added
+- `area_overlay`: makes a wrapped Home Assistant area card compact (fixed aspect ratio, info bar as a darkened overlay on top of the picture) without card-mod or a theme. Options `enabled`, `aspect_ratio`, `darken`, `blur`, `min_height`, also available in the visual editor.
+  
 ## [0.3.6]
 ### Fixed
 - Editor failed with "this._title is not a function" since 0.3.5: the new card title property had the same name as an internal method. The property is now called `_cardTitle`.
