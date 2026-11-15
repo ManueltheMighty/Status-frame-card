@@ -127,6 +127,7 @@ rules:
 |---|---|---|---|
 | `cards` | list | – | Cards inside the frame. |
 | `stack` | `vertical` \| `horizontal` | `vertical` | Arrangement if there is more than one card. |
+| `title` | string | – | Optional heading above the cards, shown like in a stack card. |
 | `rules` | list | – | Rules, first match wins. |
 | `default_border` | CSS | none | Border when no rule matches, e.g. `1px solid rgba(255,255,255,.1)`. |
 | `card` | card | – | Deprecated single-card form of `cards`. |
@@ -153,6 +154,35 @@ rules:
 | `background` | CSS | – | Background over the card, e.g. `rgba(255,0,0,.2)`. |
 
 **How the source works:** `area`, `domain` and `device_class` form a filter that all must satisfy. `entities` are added on top and are not filtered. A rule without any source matches nothing.
+
+## Area overlay
+
+For a wrapped **area card** (`display_type: picture`) the card can make the area card compact: fixed aspect ratio, name and info as a darkened bar over the picture. No card-mod and no theme needed, and it is set per card.
+
+```yaml
+type: custom:status-frame-card
+area_overlay:
+  enabled: true
+  aspect_ratio: 3/2   # also 4/3 or 16/9
+  darken: 0.45        # 0 = transparent, 1 = black
+  blur: 0             # px, 0 = off
+  min_height: 56      # height of the info bar in px
+cards:
+  - type: area
+    area: kitchen
+    display_type: picture
+rules: []
+```
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `enabled` | boolean | `false` | Turns the overlay on. |
+| `aspect_ratio` | text | `3/2` | Width/height, e.g. `3/2`, `4/3`, `16/9`. Invalid values fall back to `3/2`. |
+| `darken` | number | `0.45` | Darkness of the info bar, 0 to 1. |
+| `blur` | number | `0` | Blur behind the bar in px, 0 to 40. |
+| `min_height` | number | `56` | Minimum height of the info bar in px. |
+
+It only applies if the card wraps **exactly one area card** and has no `title`. It adjusts the inside of Home Assistant's area card, so a Home Assistant update can change how it looks. If you see a gap below the picture after an update, please open an issue with a screenshot.
 
 ## Troubleshooting
 
