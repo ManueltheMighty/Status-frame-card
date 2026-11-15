@@ -1,12 +1,12 @@
 /*!
- * Status Frame Card v0.4.0
+ * Status Frame Card v0.4.2
  * Wrapper-Karte: legt einen regelbasierten Rahmen/Glow/Animation über eine
  * beliebige andere Lovelace-Karte, ohne deren Größe zu verändern.
  * Mehrere Karten wie bei einer Stapelkarte (cards + stack), Konfiguration komplett über den Editor.
  * Neu in 0.4.0: area_overlay – kompakte Area-Karte (festes Seitenverhältnis, Infoleiste als
  * abgedunkeltes Overlay über dem Bild), pro Karte einstellbar, ganz ohne card_mod/Theme.
  */
-const SFC_VERSION = "0.4.0";
+const SFC_VERSION = "0.4.2";
 
 /* Registrierung für den Kartenwähler ganz am Anfang: Der Eintrag existiert auch dann,
    wenn weiter unten etwas schiefgeht, und wird bei doppeltem Laden nicht verdoppelt. */
@@ -82,9 +82,15 @@ const clean = (o) => {
 
 /* Overlay-CSS für die Area-Karte von Home Assistant (hui-area-card).
    Alle Werte werden geprüft und begrenzt, damit nichts Unerwartetes im CSS landet. */
+const overlayFit = (o) => (["cover", "contain", "fill"].includes(o.image_fit) ? o.image_fit : "cover");
+
+const overlayRatio = (o) => {
+  const ratio = String(has(o.aspect_ratio) ? o.aspect_ratio : "3/2").trim().replace(/:/g, "/");
+  return /^\d+(\.\d+)?(\s*\/\s*\d+(\.\d+)?)?$/.test(ratio) ? ratio : "3/2";
+};
+
 const overlayCss = (o) => {
-  let ratio = String(has(o.aspect_ratio) ? o.aspect_ratio : "3/2").trim().replace(/:/g, "/");
-  if (!/^\d+(\.\d+)?(\s*\/\s*\d+(\.\d+)?)?$/.test(ratio)) ratio = "3/2";
+  const ratio = overlayRatio(o);
   const num = (v, def, min, max) => {
     const n = Number(v);
     return has(v) && isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
@@ -92,10 +98,16 @@ const overlayCss = (o) => {
   const darken = num(o.darken, 0.45, 0, 1);
   const blur = num(o.blur, 0, 0, 40);
   const minH = num(o.min_height, 56, 0, 300);
+  const zoom = num(o.zoom, 1, 1, 3);
+  let pos = String(has(o.image_position) ? o.image_position : "center").trim().toLowerCase();
+  if (!/^(center|top|bottom|left|right)(\s+(center|top|bottom|left|right))?$/.test(pos)) pos = "center";
+  const fit = overlayFit(o);
   return `
     ha-card { position:relative; overflow:hidden; aspect-ratio:${ratio} !important; height:auto !important; }
     .header { position:absolute; inset:0; height:100% !important; padding:0 !important; z-index:0; }
     .header .picture, .header hui-image { position:absolute; inset:0; height:100%; width:100%; }
+    .header .picture { background-size:${fit === "fill" ? "100% 100%" : fit} !important; background-position:${pos} !important; }
+    ${zoom !== 1 ? `.header .picture, .header hui-image { transform:scale(${zoom}); transform-origin:${pos}; }` : ""}
     ha-tile-container {
       position:absolute !important; left:0; right:0; bottom:0; z-index:2;
       min-height:${minH}px;
@@ -178,6 +190,12 @@ class StatusFrameCard extends HTMLElement {
     if (!root) return;
     const on = !!(o && o.enabled === true && el.localName === "hui-area-card");
     const css = on ? overlayCss(o) : null;
+    if (on) {
+      const fit = overlayFit(o);
+      root.querySelectorAll("hui-image").forEach((im) => {
+        if (im.fitMode !== fit) im.fitMode = fit;
+      });
+    }
 
     if (window.CSSStyleSheet && "adoptedStyleSheets" in root) {
       if (css) {
@@ -306,11 +324,35 @@ class StatusFrameCard extends HTMLElement {
     fx.style.background = hit?.background || "none";
   }
 
+  /* Area-Overlay aktiv? Aus der Konfiguration abgeleitet, damit es schon vor dem Aufbau der inneren Karte stimmt. */
+  _overlayWanted() {
+    const c = this._config;
+    if (!c) return false;
+    const o = c.area_overlay;
+    const cards = this._cards(c);
+    return !!(o && o.enabled === true && cards.length === 1 && cards[0].type === "area" && !has(c.title));
+  }
+
   getCardSize() {
+    if (this._overlayWanted()) {
+      // Masonry-Ansicht: Höhe aus Breite und Seitenverhältnis schätzen (1 Einheit = 50 px)
+      const [a, b] = overlayRatio(this._config.area_overlay).split("/").map(Number);
+      const ratio = b ? a / b : a;
+      return Math.max(1, Math.ceil((this.offsetWidth || 300) / ratio / 50));
+    }
     return this._inner?.getCardSize?.() || 3;
   }
   getGridOptions() {
-    return this._inner?.getGridOptions?.() || {};
+    let g = this._inner?.getGridOptions?.();
+    if (g && Object.keys(g).length) this._grid = g;
+    else g = this._grid || {};
+    if (this._overlayWanted()) {
+      // Ohne "rows" ignoriert die Karte die Zeilen des Rasters und nimmt ihre natürliche Höhe.
+      // Sonst bleibt im Sections-Raster Platz für die ursprüngliche, höhere Area-Karte frei.
+      const { rows, min_rows, max_rows, ...rest } = g;
+      return { columns: 6, ...rest };
+    }
+    return g;
   }
   getLayoutOptions() {
     return this._inner?.getLayoutOptions?.() || {};
@@ -347,6 +389,9 @@ const LABELS = {
   darken: "Abdunklung der Infoleiste",
   blur: "Weichzeichner (px)",
   min_height: "Mindesthöhe der Infoleiste (px)",
+  image_fit: "Bildanpassung",
+  zoom: "Zoom",
+  image_position: "Bildausschnitt",
 };
 
 const HELPERS = {
@@ -361,6 +406,8 @@ const HELPERS = {
   aspect_ratio: "z. B. 3/2, 4/3 oder 16/9. Leer = 3/2",
   darken: "0 = durchsichtig, 1 = schwarz (Standard 0,45)",
   blur: "0 = aus. Weichzeichnet das Bild hinter der Leiste",
+  zoom: "1 = kein Zoom. Füllt das Bild die Karte nicht, z. B. 1,2 probieren",
+  image_position: "Welcher Teil des Bildes beim Zoomen/Zuschneiden sichtbar bleibt",
 };
 
 const DOMAINS = [
@@ -449,6 +496,39 @@ const SCHEMA_OVERLAY = [
     ],
   },
   { name: "min_height", selector: { number: { min: 0, max: 200, step: 1, mode: "box" } } },
+  {
+    name: "image_fit",
+    selector: {
+      select: {
+        mode: "dropdown",
+        options: [
+          { value: "cover", label: "Ausfüllen (zuschneiden)" },
+          { value: "contain", label: "Einpassen (Rand möglich)" },
+          { value: "fill", label: "Strecken" },
+        ],
+      },
+    },
+  },
+  {
+    type: "grid", name: "", schema: [
+      { name: "zoom", selector: { number: { min: 1, max: 3, step: 0.05, mode: "slider" } } },
+      {
+        name: "image_position",
+        selector: {
+          select: {
+            mode: "dropdown",
+            options: [
+              { value: "center", label: "Mitte" },
+              { value: "top", label: "Oben" },
+              { value: "bottom", label: "Unten" },
+              { value: "left", label: "Links" },
+              { value: "right", label: "Rechts" },
+            ],
+          },
+        },
+      },
+    ],
+  },
 ];
 
 const SCHEMA_GENERAL = [
