@@ -3,6 +3,13 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/), versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.4.1]
+### Added
+- `area_overlay`: `image_fit` (`cover`, `contain`, `fill`; default `cover`), `zoom` (1 to 3) and `image_position` (`center`, `top`, `bottom`, `left`, `right`), so a picture that does not fill the card (for example 16:9 in a 3/2 card) can be filled, cropped or zoomed.
+### Fixed
+- With `area_overlay` enabled the card kept the grid height of the original, taller area card and left a gap below it in the sections view. The card now reports no `rows` to the grid and takes its natural height from the aspect ratio. The width stays as set. The card size for the masonry view is estimated from the aspect ratio.
+- The grid options of the wrapped card are remembered, so the card keeps its width even if the layout asks before the inner card is built.
+  
 ## [0.4.0]
 ### Added
 - `area_overlay`: makes a wrapped Home Assistant area card compact (fixed aspect ratio, info bar as a darkened overlay on top of the picture) without card-mod or a theme. Options `enabled`, `aspect_ratio`, `darken`, `blur`, `min_height`, also available in the visual editor.
