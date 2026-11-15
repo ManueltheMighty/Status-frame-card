@@ -132,6 +132,7 @@ rules:
 |---|---|---|---|
 | `cards` | Liste | – | Karten im Rahmen. |
 | `stack` | `vertical` \| `horizontal` | `vertical` | Anordnung bei mehr als einer Karte. |
+| `title` | Text | – | Optionale Überschrift über den Karten, wie bei einer Stapelkarte. |
 | `rules` | Liste | – | Regeln, die erste passende gewinnt. |
 | `default_border` | CSS | keiner | Rahmen, wenn keine Regel passt, z. B. `1px solid rgba(255,255,255,.1)`. |
 | `card` | Karte | – | Veraltete Einzelkarten-Form von `cards`. |
@@ -158,6 +159,35 @@ rules:
 | `background` | CSS | – | Hintergrund über der Karte, z. B. `rgba(255,0,0,.2)`. |
 
 **So funktioniert die Quelle:** `area`, `domain` und `device_class` bilden einen Filter, den alle erfüllen müssen. `entities` kommen zusätzlich dazu und werden nicht gefiltert. Eine Regel ohne jede Quelle trifft nichts.
+
+## Area-Overlay
+
+Bei einer umschlossenen **Area-Karte** (`display_type: picture`) kann die Karte die Area-Karte kompakter machen: festes Seitenverhältnis, Name und Infos als abgedunkelte Leiste über dem Bild. Weder card-mod noch ein Theme sind nötig, und die Einstellung gilt pro Karte.
+
+```yaml
+type: custom:status-frame-card
+area_overlay:
+  enabled: true
+  aspect_ratio: 3/2   # auch 4/3 oder 16/9
+  darken: 0.45        # 0 = durchsichtig, 1 = schwarz
+  blur: 0             # px, 0 = aus
+  min_height: 56      # Höhe der Infoleiste in px
+cards:
+  - type: area
+    area: kueche
+    display_type: picture
+rules: []
+```
+
+| Option | Typ | Standard | Beschreibung |
+|---|---|---|---|
+| `enabled` | boolean | `false` | Schaltet das Overlay ein. |
+| `aspect_ratio` | Text | `3/2` | Breite/Höhe, z. B. `3/2`, `4/3`, `16/9`. Ungültige Werte werden zu `3/2`. |
+| `darken` | Zahl | `0.45` | Abdunklung der Infoleiste, 0 bis 1. |
+| `blur` | Zahl | `0` | Weichzeichner hinter der Leiste in px, 0 bis 40. |
+| `min_height` | Zahl | `56` | Mindesthöhe der Infoleiste in px. |
+
+Es greift nur, wenn die Karte **genau eine Area-Karte** umschließt und kein `title` gesetzt ist. Das Overlay greift in das Innere der Area-Karte von Home Assistant ein, ein HA-Update kann daher das Aussehen verändern. Erscheint nach einem Update eine Lücke unter dem Bild, eröffne bitte ein Issue mit Screenshot.
 
 ## Fehlersuche
 
