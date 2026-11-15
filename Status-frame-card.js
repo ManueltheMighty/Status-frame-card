@@ -1,10 +1,12 @@
 /*!
- * Status Frame Card v0.3.6
+ * Status Frame Card v0.4.0
  * Wrapper-Karte: legt einen regelbasierten Rahmen/Glow/Animation über eine
  * beliebige andere Lovelace-Karte, ohne deren Größe zu verändern.
  * Mehrere Karten wie bei einer Stapelkarte (cards + stack), Konfiguration komplett über den Editor.
+ * Neu in 0.4.0: area_overlay – kompakte Area-Karte (festes Seitenverhältnis, Infoleiste als
+ * abgedunkeltes Overlay über dem Bild), pro Karte einstellbar, ganz ohne card_mod/Theme.
  */
-const SFC_VERSION = "0.3.6";
+const SFC_VERSION = "0.4.0";
 
 /* Registrierung für den Kartenwähler ganz am Anfang: Der Eintrag existiert auch dann,
    wenn weiter unten etwas schiefgeht, und wird bei doppeltem Laden nicht verdoppelt. */
@@ -78,6 +80,32 @@ const clean = (o) => {
   return r;
 };
 
+/* Overlay-CSS für die Area-Karte von Home Assistant (hui-area-card).
+   Alle Werte werden geprüft und begrenzt, damit nichts Unerwartetes im CSS landet. */
+const overlayCss = (o) => {
+  let ratio = String(has(o.aspect_ratio) ? o.aspect_ratio : "3/2").trim().replace(/:/g, "/");
+  if (!/^\d+(\.\d+)?(\s*\/\s*\d+(\.\d+)?)?$/.test(ratio)) ratio = "3/2";
+  const num = (v, def, min, max) => {
+    const n = Number(v);
+    return has(v) && isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
+  };
+  const darken = num(o.darken, 0.45, 0, 1);
+  const blur = num(o.blur, 0, 0, 40);
+  const minH = num(o.min_height, 56, 0, 300);
+  return `
+    ha-card { position:relative; overflow:hidden; aspect-ratio:${ratio} !important; height:auto !important; }
+    .header { position:absolute; inset:0; height:100% !important; padding:0 !important; z-index:0; }
+    .header .picture, .header hui-image { position:absolute; inset:0; height:100%; width:100%; }
+    ha-tile-container {
+      position:absolute !important; left:0; right:0; bottom:0; z-index:2;
+      min-height:${minH}px;
+      background:rgba(0,0,0,${darken});
+      ${blur > 0 ? `-webkit-backdrop-filter:blur(${blur}px); backdrop-filter:blur(${blur}px);` : ""}
+      --primary-text-color:#fff;
+      --secondary-text-color:rgba(255,255,255,.8);
+    }`;
+};
+
 /* ------------------------------------------------------------------ */
 /* Karte                                                               */
 /* ------------------------------------------------------------------ */
@@ -133,6 +161,48 @@ class StatusFrameCard extends HTMLElement {
       this._buildInner(key);
     }
     this._update();
+    this._applyOverlay();
+  }
+
+  connectedCallback() {
+    this._applyOverlay();
+  }
+
+  /* Area-Overlay: Style in den Shadow-DOM der inneren Area-Karte einbringen.
+     Läuft idempotent bei jedem Aufruf (Konfiguration, hass, Verbinden), weil die innere Karte
+     asynchron entsteht und ihr Shadow-DOM erst nach dem Verbinden existiert. */
+  _applyOverlay() {
+    const o = this._config && this._config.area_overlay;
+    const el = this._inner;
+    const root = el && el.shadowRoot;
+    if (!root) return;
+    const on = !!(o && o.enabled === true && el.localName === "hui-area-card");
+    const css = on ? overlayCss(o) : null;
+
+    if (window.CSSStyleSheet && "adoptedStyleSheets" in root) {
+      if (css) {
+        if (!this._ovSheet) this._ovSheet = new CSSStyleSheet();
+        if (this._ovCss !== css) {
+          this._ovSheet.replaceSync(css);
+          this._ovCss = css;
+        }
+        if (!root.adoptedStyleSheets.includes(this._ovSheet))
+          root.adoptedStyleSheets = [...root.adoptedStyleSheets, this._ovSheet];
+      } else if (this._ovSheet && root.adoptedStyleSheets.includes(this._ovSheet)) {
+        root.adoptedStyleSheets = root.adoptedStyleSheets.filter((x) => x !== this._ovSheet);
+      }
+    } else {
+      // Fallback für sehr alte Browser: normales <style>-Element
+      let st = root.querySelector("style[data-sfc-overlay]");
+      if (css) {
+        if (!st) {
+          st = document.createElement("style");
+          st.setAttribute("data-sfc-overlay", "");
+          root.append(st);
+        }
+        if (st.textContent !== css) st.textContent = css;
+      } else if (st) st.remove();
+    }
   }
 
   _cards(config) {
@@ -170,12 +240,14 @@ class StatusFrameCard extends HTMLElement {
     if (this._hass) el.hass = this._hass;
     this._inner = el;
     wrap.prepend(el);
+    this._applyOverlay();
   }
 
   set hass(hass) {
     this._hass = hass;
     if (this._inner && "hass" in this._inner) this._inner.hass = hass;
     this._update();
+    this._applyOverlay();
   }
 
   /* Entitäten, die zu einer Regel gehören */
@@ -270,6 +342,11 @@ const LABELS = {
   background: "Hintergrund",
   default_border: "Standard-Rahmen (CSS, optional)",
   stack: "Anordnung bei mehreren Karten",
+  enabled: "Area-Overlay aktivieren",
+  aspect_ratio: "Seitenverhältnis",
+  darken: "Abdunklung der Infoleiste",
+  blur: "Weichzeichner (px)",
+  min_height: "Mindesthöhe der Infoleiste (px)",
 };
 
 const HELPERS = {
@@ -280,6 +357,10 @@ const HELPERS = {
   color: "#hex, rgba(…) oder var(--error-color)",
   background: "z. B. rgba(255,0,0,.2)",
   default_border: "z. B. 1px solid rgba(255,255,255,.1). Leer = kein Rahmen",
+  enabled: "Gilt nur, wenn die umschlossene Karte genau eine Area-Karte ist",
+  aspect_ratio: "z. B. 3/2, 4/3 oder 16/9. Leer = 3/2",
+  darken: "0 = durchsichtig, 1 = schwarz (Standard 0,45)",
+  blur: "0 = aus. Weichzeichnet das Bild hinter der Leiste",
 };
 
 const DOMAINS = [
@@ -358,6 +439,18 @@ const SCHEMA_EFFECT = [
   { name: "background", selector: { text: {} } },
 ];
 
+const SCHEMA_OVERLAY = [
+  { name: "enabled", selector: { boolean: {} } },
+  { name: "aspect_ratio", selector: { text: {} } },
+  {
+    type: "grid", name: "", schema: [
+      { name: "darken", selector: { number: { min: 0, max: 1, step: 0.05, mode: "slider" } } },
+      { name: "blur", selector: { number: { min: 0, max: 30, step: 1, mode: "slider" } } },
+    ],
+  },
+  { name: "min_height", selector: { number: { min: 0, max: 200, step: 1, mode: "box" } } },
+];
+
 const SCHEMA_GENERAL = [
   {
     name: "stack",
@@ -406,6 +499,7 @@ class StatusFrameCardEditor extends HTMLElement {
     this._cardTitle = this._config.title;
     this._rules = (this._config.rules || []).map((r) => ({ ...r }));
     this._defaultBorder = this._config.default_border;
+    this._overlay = { ...(this._config.area_overlay || {}) };
     this._openIdx = null;
 
     this.innerHTML = `
@@ -438,6 +532,9 @@ class StatusFrameCardEditor extends HTMLElement {
         <p class="hint">Reihenfolge = Priorität: die erste passende Regel gewinnt. Wichtiges nach oben.</p>
         <div id="rules"></div>
         <button class="btn" id="add">+ Regel hinzufügen</button>
+        <h3>Area-Overlay</h3>
+        <p class="hint">Macht die umschlossene Area-Karte kompakter: festes Seitenverhältnis, Name und Infos als abgedunkeltes Overlay über dem Bild.</p>
+        <div id="overlay"></div>
         <h3>Allgemein</h3>
         <div id="general"></div>
       </div>`;
@@ -448,6 +545,12 @@ class StatusFrameCardEditor extends HTMLElement {
       this._renderRules();
       this._emit();
     });
+
+    const ov = this._form(SCHEMA_OVERLAY, this._overlay, (v) => {
+      this._overlay = clean(v);
+      this._emit();
+    });
+    this.querySelector("#overlay").append(ov);
 
     const gen = this._form(
       SCHEMA_GENERAL,
@@ -487,6 +590,7 @@ class StatusFrameCardEditor extends HTMLElement {
       title: this._cardTitle,
       rules: this._rules.map(clean),
       default_border: this._defaultBorder,
+      area_overlay: Object.keys(this._overlay || {}).length ? this._overlay : undefined,
     });
     this._config = cfg;
     this._lastEmitted = JSON.stringify(cfg);
