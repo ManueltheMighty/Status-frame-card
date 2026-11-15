@@ -1,12 +1,12 @@
 /*!
- * Status Frame Card v0.4.2
+ * Status Frame Card v0.4.1
  * Wrapper-Karte: legt einen regelbasierten Rahmen/Glow/Animation über eine
  * beliebige andere Lovelace-Karte, ohne deren Größe zu verändern.
  * Mehrere Karten wie bei einer Stapelkarte (cards + stack), Konfiguration komplett über den Editor.
  * Neu in 0.4.0: area_overlay – kompakte Area-Karte (festes Seitenverhältnis, Infoleiste als
  * abgedunkeltes Overlay über dem Bild), pro Karte einstellbar, ganz ohne card_mod/Theme.
  */
-const SFC_VERSION = "0.4.2";
+const SFC_VERSION = "0.4.1";
 
 /* Registrierung für den Kartenwähler ganz am Anfang: Der Eintrag existiert auch dann,
    wenn weiter unten etwas schiefgeht, und wird bei doppeltem Laden nicht verdoppelt. */
