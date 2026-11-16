@@ -581,10 +581,15 @@ class StatusFrameCardEditor extends HTMLElement {
     this._defaultBorder = this._config.default_border;
     this._overlay = { ...(this._config.area_overlay || {}) };
     this._openIdx = null;
+    if (!this._sections)
+      this._sections = { cards: true, rules: true, overlay: this._overlay.enabled === true, general: false };
 
     this.innerHTML = `
       <style>
         .sfc h3 { margin:16px 0 4px; font-size:1rem; }
+        .sfc details.sec { margin:8px 0; border-top:1px solid var(--divider-color); }
+        .sfc details.sec > summary { cursor:pointer; padding:12px 0; font-size:1rem; font-weight:500; }
+        .sfc details.sec > .secbody { padding-bottom:8px; }
         .sfc .hint { margin:0 0 8px; color:var(--secondary-text-color); font-size:.85rem; }
         .sfc .rule { border:1px solid var(--divider-color); border-radius:8px; margin-bottom:8px; overflow:hidden; }
         .sfc .head { display:flex; align-items:center; gap:8px; padding:6px 8px; background:var(--secondary-background-color); }
@@ -606,18 +611,35 @@ class StatusFrameCardEditor extends HTMLElement {
                          background:var(--card-background-color); color:var(--primary-text-color); font:inherit; }
       </style>
       <div class="sfc">
-        <h3>Umschlossene Karten</h3>
-        <div id="cardbox"></div>
-        <h3>Regeln</h3>
-        <p class="hint">Reihenfolge = Priorität: die erste passende Regel gewinnt. Wichtiges nach oben.</p>
-        <div id="rules"></div>
-        <button class="btn" id="add">+ Regel hinzufügen</button>
-        <h3>Area-Overlay</h3>
-        <p class="hint">Macht die umschlossene Area-Karte kompakter: festes Seitenverhältnis, Name und Infos als abgedunkeltes Overlay über dem Bild.</p>
-        <div id="overlay"></div>
-        <h3>Allgemein</h3>
-        <div id="general"></div>
+        <details class="sec" data-k="cards" ${this._sections.cards ? "open" : ""}>
+          <summary>Umschlossene Karten</summary>
+          <div class="secbody"><div id="cardbox"></div></div>
+        </details>
+        <details class="sec" data-k="rules" ${this._sections.rules ? "open" : ""}>
+          <summary id="sum-rules">Regeln</summary>
+          <div class="secbody">
+            <p class="hint">Reihenfolge = Priorität: die erste passende Regel gewinnt. Wichtiges nach oben.</p>
+            <div id="rules"></div>
+            <button class="btn" id="add">+ Regel hinzufügen</button>
+          </div>
+        </details>
+        <details class="sec" data-k="overlay" ${this._sections.overlay ? "open" : ""}>
+          <summary id="sum-overlay">Area-Overlay</summary>
+          <div class="secbody">
+            <p class="hint">Macht die umschlossene Area-Karte kompakter: festes Seitenverhältnis, Name und Infos als abgedunkeltes Overlay über dem Bild.</p>
+            <div id="overlay"></div>
+          </div>
+        </details>
+        <details class="sec" data-k="general" ${this._sections.general ? "open" : ""}>
+          <summary>Allgemein</summary>
+          <div class="secbody"><div id="general"></div></div>
+        </details>
       </div>`;
+
+    // Aufgeklappt/zugeklappt merken, auch wenn der Editor neu aufgebaut wird
+    this.querySelectorAll("details.sec").forEach((d) =>
+      d.addEventListener("toggle", () => (this._sections[d.dataset.k] = d.open))
+    );
 
     this.querySelector("#add").addEventListener("click", () => {
       this._rules.push({ color: "#ffea00", glow: 12 });
@@ -628,6 +650,7 @@ class StatusFrameCardEditor extends HTMLElement {
 
     const ov = this._form(SCHEMA_OVERLAY, this._overlay, (v) => {
       this._overlay = clean(v);
+      this._updateBadges();
       this._emit();
     });
     this.querySelector("#overlay").append(ov);
@@ -645,6 +668,14 @@ class StatusFrameCardEditor extends HTMLElement {
 
     this._renderCardBox();
     this._renderRules();
+    this._updateBadges();
+  }
+
+  _updateBadges() {
+    const r = this.querySelector("#sum-rules");
+    if (r) r.textContent = `Regeln (${this._rules.length})`;
+    const o = this.querySelector("#sum-overlay");
+    if (o) o.textContent = `Area-Overlay · ${this._overlay && this._overlay.enabled === true ? "an" : "aus"}`;
   }
 
   _form(schema, data, onChange) {
@@ -777,6 +808,7 @@ class StatusFrameCardEditor extends HTMLElement {
     const list = this.querySelector("#rules");
     list.innerHTML = "";
     this._rules.forEach((_, i) => list.append(this._ruleEl(i)));
+    this._updateBadges();
   }
 
   _move(i, d) {
