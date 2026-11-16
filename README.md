@@ -7,6 +7,7 @@ A wrapper card for Home Assistant Lovelace. It puts a **rule-based frame, glow, 
 Everything is configured in the **visual editor**. No templates, no card-mod needed.
 
 <img width="540" height="386" alt="image" src="https://github.com/user-attachments/assets/5ac285a3-53d2-446c-bd9b-41010cd3801b" />
+<img width="215" height="126" alt="image" src="https://github.com/user-attachments/assets/ec245ac6-8328-4e44-b7a5-1f306680b4fd" />
 <img width="219" height="205" alt="image" src="https://github.com/user-attachments/assets/756dd1e2-62ab-48f9-b671-3ae890a40429" />
 
 
@@ -181,6 +182,11 @@ rules: []
 | `darken` | number | `0.45` | Darkness of the info bar, 0 to 1. |
 | `blur` | number | `0` | Blur behind the bar in px, 0 to 40. |
 | `min_height` | number | `56` | Minimum height of the info bar in px. |
+| `image_fit` | `cover` \| `contain` \| `fill` | `cover` | How the picture fits the card. `cover` fills the card and crops the picture. |
+| `zoom` | number | `1` | Zoom factor, 1 to 3. Try `1.2` if the picture does not fill the card. |
+| `image_position` | `center` \| `top` \| `bottom` \| `left` \| `right` | `center` | Which part of the picture stays visible when cropping or zooming. |
+
+In the sections view the card gives up the grid rows while the overlay is on, so the compact card does not leave a gap. Its height then follows the aspect ratio, and the row setting of the layout editor has no effect on it. The width still works.
 
 It only applies if the card wraps **exactly one area card** and has no `title`. It adjusts the inside of Home Assistant's area card, so a Home Assistant update can change how it looks. If you see a gap below the picture after an update, please open an issue with a screenshot.
 
