@@ -7,6 +7,7 @@ Eine Wrapper-Karte für Home Assistant Lovelace. Sie legt einen **regelbasierten
 Alles wird im **grafischen Editor** eingestellt. Keine Templates, kein card-mod nötig.
 
 <img width="540" height="386" alt="image" src="https://github.com/user-attachments/assets/1b66e392-7030-49df-915d-58a61fadc4fb" />
+<img width="215" height="126" alt="image" src="https://github.com/user-attachments/assets/7860d03e-30fe-485f-8d94-ee613b5edcae" />
 <img width="219" height="205" alt="image" src="https://github.com/user-attachments/assets/ed4c2b01-1fdf-4c9b-9410-77f067864045" />
 
 
@@ -186,6 +187,11 @@ rules: []
 | `darken` | Zahl | `0.45` | Abdunklung der Infoleiste, 0 bis 1. |
 | `blur` | Zahl | `0` | Weichzeichner hinter der Leiste in px, 0 bis 40. |
 | `min_height` | Zahl | `56` | Mindesthöhe der Infoleiste in px. |
+| `image_fit` | `cover` \| `contain` \| `fill` | `cover` | Anpassung des Bildes an die Karte. `cover` füllt die Karte und schneidet das Bild zu. |
+| `zoom` | Zahl | `1` | Zoomfaktor von 1 bis 3. Füllt das Bild die Karte nicht, probiere `1.2`. |
+| `image_position` | `center` \| `top` \| `bottom` \| `left` \| `right` | `center` | Welcher Teil des Bildes beim Zuschneiden oder Zoomen sichtbar bleibt. |
+
+In der Sections-Ansicht gibt die Karte bei aktivem Overlay die Rasterzeilen frei, damit die kompakte Karte keine Lücke hinterlässt. Die Höhe folgt dann dem Seitenverhältnis, die Zeileneinstellung im Layout-Editor wirkt nicht mehr. Die Breite funktioniert weiter.
 
 Es greift nur, wenn die Karte **genau eine Area-Karte** umschließt und kein `title` gesetzt ist. Das Overlay greift in das Innere der Area-Karte von Home Assistant ein, ein HA-Update kann daher das Aussehen verändern. Erscheint nach einem Update eine Lücke unter dem Bild, eröffne bitte ein Issue mit Screenshot.
 
