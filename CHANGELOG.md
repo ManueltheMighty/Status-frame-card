@@ -3,6 +3,10 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/), versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.5.0]
+### Added
+- New animation `orbit`: a bright dot with a short tail travels around the frame, to show that something is running (for example a washing machine). `speed` sets the time of one lap (default 4 s). It is CSS only, follows the card's corner radius, and is switched off when the system asks for reduced motion.
+- 
 ## [0.4.1]
 ### Added
 - `area_overlay`: `image_fit` (`cover`, `contain`, `fill`; default `cover`), `zoom` (1 to 3) and `image_position` (`center`, `top`, `bottom`, `left`, `right`), so a picture that does not fill the card (for example 16:9 in a 3/2 card) can be filled, cropped or zoomed.
