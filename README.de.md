@@ -155,11 +155,32 @@ rules:
 | `color` | CSS-Farbe | Primärfarbe | `#hex`, `rgba(…)` oder `var(--error-color)`. |
 | `width` | Zahl | `2` | Rahmenbreite in px. |
 | `glow` | Zahl | – | Leuchtradius in px. |
-| `animation` | `none` \| `pulse` \| `blink` \| `glow` \| `breathe` | `none` | |
+| `animation` | `none` \| `pulse` \| `blink` \| `glow` \| `breathe` \| `orbit` | `none` | `orbit` lässt einen hellen Punkt um den Rahmen laufen, siehe unten. |
 | `speed` | Zahl | `1.5` | Dauer der Animation in Sekunden. |
 | `background` | CSS | – | Hintergrund über der Karte, z. B. `rgba(255,0,0,.2)`. |
 
 **So funktioniert die Quelle:** `area`, `domain` und `device_class` bilden einen Filter, den alle erfüllen müssen. `entities` kommen zusätzlich dazu und werden nicht gefiltert. Eine Regel ohne jede Quelle trifft nichts.
+
+## Laufanzeige (orbit)
+
+Die Animation `orbit` schickt einen hellen Punkt mit kurzem Schweif um den Rahmen. Sie soll zeigen, dass gerade etwas läuft, zum Beispiel eine Waschmaschine.
+
+```yaml
+type: custom:status-frame-card
+cards:
+  - type: tile
+    entity: sensor.waschmaschine_leistung
+rules:
+  - entities: [sensor.waschmaschine_leistung]
+    above: 5
+    color: "#00e5ff"
+    width: 2
+    glow: 8
+    animation: orbit
+    speed: 4        # Sekunden pro Umlauf
+```
+
+Der normale Rahmen (Farbe, `width`, `glow`) bleibt sichtbar, der Punkt läuft darüber. Die Animation braucht kein Netzwerk und keine zusätzlichen Bibliotheken. Ist im System "Bewegung reduzieren" eingestellt, zeigt die Karte nur den ruhenden Rahmen. Viele gleichzeitig animierte Karten kosten etwas CPU, das kann auf einem Wand-Tablet eine Rolle spielen. Nutze sie deshalb für Zustände, die wirklich "läuft gerade" bedeuten.
 
 ## Area-Overlay
 
