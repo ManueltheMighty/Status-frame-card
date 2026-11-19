@@ -1,12 +1,12 @@
 /*!
- * Status Frame Card v0.4.1
+ * Status Frame Card v0.5.0
  * Wrapper-Karte: legt einen regelbasierten Rahmen/Glow/Animation über eine
  * beliebige andere Lovelace-Karte, ohne deren Größe zu verändern.
  * Mehrere Karten wie bei einer Stapelkarte (cards + stack), Konfiguration komplett über den Editor.
  * Neu in 0.4.0: area_overlay – kompakte Area-Karte (festes Seitenverhältnis, Infoleiste als
  * abgedunkeltes Overlay über dem Bild), pro Karte einstellbar, ganz ohne card_mod/Theme.
  */
-const SFC_VERSION = "0.4.1";
+const SFC_VERSION = "0.5.0";
 
 /* Registrierung für den Kartenwähler ganz am Anfang: Der Eintrag existiert auch dann,
    wenn weiter unten etwas schiefgeht, und wird bei doppeltem Laden nicht verdoppelt. */
@@ -164,8 +164,18 @@ class StatusFrameCard extends HTMLElement {
           @keyframes blink   { 0%,49%{opacity:1} 50%,100%{opacity:.1} }
           @keyframes glow    { 0%,100%{box-shadow:0 0 6px var(--c)} 50%{box-shadow:0 0 18px var(--c)} }
           @keyframes breathe { 0%,100%{opacity:1} 50%{opacity:.35} }
+          /* Umlaufender Lichtpunkt: Punkte folgen einem Pfad entlang des Rahmens (offset-path) */
+          #orbit { position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:2; display:none; }
+          #orbit.on { display:block; }
+          #orbit .dot { position:absolute; top:0; left:0; border-radius:50%; background:var(--c);
+                        offset-path:var(--path); offset-rotate:0deg; offset-anchor:center;
+                        animation:sfc-orbit var(--spd, 4s) linear infinite; will-change:offset-distance; }
+          #orbit .dot.head { background:#fff; width:7px; height:7px; box-shadow:0 0 8px 3px var(--c); }
+          @keyframes sfc-orbit { from { offset-distance:0% } to { offset-distance:100% } }
+          @media (prefers-reduced-motion: reduce) { #orbit .dot { animation:none; } }
         </style>
-        <div id="wrap"><div id="fx"></div></div>`;
+        <div id="wrap"><div id="fx"></div><div id="orbit"></div></div>`;
+      this._buildOrbit();
     }
     const key = JSON.stringify([this._cards(config), config.stack || "vertical", config.title || ""]);
     if (key !== this._cardKey) {
@@ -178,6 +188,53 @@ class StatusFrameCard extends HTMLElement {
 
   connectedCallback() {
     this._applyOverlay();
+  }
+
+  /* Lichtpunkt mit Schweif: ein heller Kopf und acht kleinere, blassere Punkte dahinter */
+  _buildOrbit() {
+    const o = this._root.getElementById("orbit");
+    this._dots = [];
+    for (let k = 8; k >= 1; k--) {
+      const d = document.createElement("div");
+      d.className = "dot";
+      d.style.width = d.style.height = (6.2 - k * 0.4).toFixed(1) + "px";
+      d.style.opacity = (0.9 - k * 0.1).toFixed(1);
+      d.style.boxShadow = "0 0 6px 1px var(--c)";
+      o.append(d);
+      this._dots[k] = d;
+    }
+    const head = document.createElement("div");
+    head.className = "dot head";
+    o.append(head);
+    this._dots[0] = head;
+  }
+
+  /* hit = passende Regel mit animation "orbit", sonst null */
+  _setOrbit(hit) {
+    const o = this._root?.getElementById("orbit");
+    if (!o) return;
+    if (!hit) {
+      o.classList.remove("on");
+      this._orbitKey = null;
+      return;
+    }
+    const wn = Number(hit.width);
+    const w = has(hit.width) && isFinite(wn) ? Math.min(20, Math.max(0, wn)) : 2;
+    const sn = Number(hit.speed);
+    const spd = has(hit.speed) && isFinite(sn) ? Math.min(60, Math.max(0.5, sn)) : 4;
+    const color = hit.color || "var(--primary-color)";
+    const key = [w, spd, color].join("|");
+    if (key !== this._orbitKey) {
+      this._orbitKey = key;
+      let r = parseFloat(getComputedStyle(this._root.getElementById("wrap")).borderRadius);
+      if (!isFinite(r) || String(getComputedStyle(this._root.getElementById("wrap")).borderRadius).includes("%")) r = 12;
+      o.style.setProperty("--path", `inset(${w / 2}px round ${Math.max(0, r - w / 2)}px)`);
+      o.style.setProperty("--c", color);
+      o.style.setProperty("--spd", spd + "s");
+      // Schweifpunkte laufen zeitlich versetzt hinter dem Kopf (negative Verzögerung = Phase)
+      this._dots.forEach((d, k) => (d.style.animationDelay = `${-(spd * (1 - k * 0.005))}s`));
+    }
+    o.classList.add("on");
   }
 
   /* Area-Overlay: Style in den Shadow-DOM der inneren Area-Karte einbringen.
@@ -320,7 +377,9 @@ class StatusFrameCard extends HTMLElement {
       : this._config.default_border || "none";
     fx.style.boxShadow = hit && Number(hit.glow) > 0 ? `0 0 ${hit.glow}px var(--c)` : "none";
     const anim = hit && hit.animation && hit.animation !== "none" ? hit.animation : null;
-    fx.style.animation = anim ? `${anim} ${has(hit.speed) ? hit.speed : 1.5}s infinite` : "none";
+    const orbit = anim === "orbit";
+    fx.style.animation = anim && !orbit ? `${anim} ${has(hit.speed) ? hit.speed : 1.5}s infinite` : "none";
+    this._setOrbit(orbit ? hit : null);
     fx.style.background = hit?.background || "none";
   }
 
@@ -401,6 +460,7 @@ const HELPERS = {
   above: "Für Zahlenwerte, z. B. Batterie",
   color: "#hex, rgba(…) oder var(--error-color)",
   background: "z. B. rgba(255,0,0,.2)",
+  speed: "Dauer einer Animation (Standard 1,5). Bei „Umlaufend“ die Dauer eines Umlaufs (Standard 4)",
   default_border: "z. B. 1px solid rgba(255,255,255,.1). Leer = kein Rahmen",
   enabled: "Gilt nur, wenn die umschlossene Karte genau eine Area-Karte ist",
   aspect_ratio: "z. B. 3/2, 4/3 oder 16/9. Leer = 3/2",
@@ -476,6 +536,7 @@ const SCHEMA_EFFECT = [
               { value: "blink", label: "Blinken" },
               { value: "glow", label: "Glühen" },
               { value: "breathe", label: "Atmen" },
+              { value: "orbit", label: "Umlaufend (Lichtpunkt)" },
             ],
           },
         },
