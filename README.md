@@ -150,11 +150,32 @@ rules:
 | `color` | CSS colour | primary colour | `#hex`, `rgba(…)` or `var(--error-color)`. |
 | `width` | number | `2` | Border width in px. |
 | `glow` | number | – | Glow radius in px. |
-| `animation` | `none` \| `pulse` \| `blink` \| `glow` \| `breathe` | `none` | |
+ `animation` | `none` \| `pulse` \| `blink` \| `glow` \| `breathe` \| `orbit` | `none` | `orbit` lets a bright dot travel around the frame, see below. |
 | `speed` | number | `1.5` | Animation duration in seconds. |
 | `background` | CSS | – | Background over the card, e.g. `rgba(255,0,0,.2)`. |
 
 **How the source works:** `area`, `domain` and `device_class` form a filter that all must satisfy. `entities` are added on top and are not filtered. A rule without any source matches nothing.
+
+## Running indicator (orbit)
+
+The animation `orbit` sends a bright dot with a short tail around the frame. It is meant to show that something is running, for example a washing machine.
+
+```yaml
+type: custom:status-frame-card
+cards:
+  - type: tile
+    entity: sensor.washing_machine_power
+rules:
+  - entities: [sensor.washing_machine_power]
+    above: 5
+    color: "#00e5ff"
+    width: 2
+    glow: 8
+    animation: orbit
+    speed: 4        # seconds per lap
+```
+
+The normal frame (colour, `width`, `glow`) stays visible, the dot runs on top of it. The animation needs no network and no extra libraries. If the system is set to reduced motion, only the static frame is shown. Many cards animating at the same time cost some CPU, which can matter on a wall tablet, so use it for states that really mean "running".
 
 ## Area overlay
 
