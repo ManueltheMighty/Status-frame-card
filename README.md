@@ -129,6 +129,7 @@ rules:
 | `cards` | list | – | Cards inside the frame. |
 | `stack` | `vertical` \| `horizontal` | `vertical` | Arrangement if there is more than one card. |
 | `title` | string | – | Optional heading above the cards, shown like in a stack card. |
+| `style` | object | – | Layout of the wrapped cards, see below. |
 | `rules` | list | – | Rules, first match wins. |
 | `default_border` | CSS | none | Border when no rule matches, e.g. `1px solid rgba(255,255,255,.1)`. |
 | `card` | card | – | Deprecated single-card form of `cards`. |
@@ -150,11 +151,67 @@ rules:
 | `color` | CSS colour | primary colour | `#hex`, `rgba(…)` or `var(--error-color)`. |
 | `width` | number | `2` | Border width in px. |
 | `glow` | number | – | Glow radius in px. |
- `animation` | `none` \| `pulse` \| `blink` \| `glow` \| `breathe` \| `orbit` | `none` | `orbit` lets a bright dot travel around the frame, see below. |
-| `speed` | number | `1.5` | Animation duration in seconds. |
+| `animation` | `none` \| `pulse` \| `blink` \| `glow` \| `breathe` \| `orbit` | `none` | `orbit` lets a bright dot travel around the frame, see below. |
+| `speed` | number | `1.5` | Animation duration in seconds. For `orbit` the time of one lap (default `4`). |
 | `background` | CSS | – | Background over the card, e.g. `rgba(255,0,0,.2)`. |
 
 **How the source works:** `area`, `domain` and `device_class` form a filter that all must satisfy. `entities` are added on top and are not filtered. A rule without any source matches nothing.
+
+## Layout (style)
+
+With `style` you change how the wrapped cards look: background, transparency, blur, corners, border, shadow and text colour. Pick a preset and, if you like, override single values. Without `style` nothing changes.
+
+```yaml
+type: custom:status-frame-card
+style:
+  preset: glass
+  opacity: 0.5      # overrides the preset
+  radius: 20
+cards:
+  - type: tile
+    entity: light.living_room
+```
+
+| Preset | Look |
+|---|---|
+| `glass` | translucent with blurred background, light border, soft shadow |
+| `dark` | dark, almost opaque |
+| `light` | light background with dark text |
+| `outline` | transparent, only a thin border |
+| `minimal` | no background, no border, no shadow |
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `preset` | `glass` \| `dark` \| `light` \| `outline` \| `minimal` | – | Starting point. Without it only the options you set apply. |
+| `background` | colour | from preset | `#hex`, `rgb(…)`, `hsl(…)` or `var(--…)`. Colours only, no images. |
+| `image` | path | – | Background picture from `/config/www`, written as `/local/folder/picture.jpg`. Only `/local/` paths, no web addresses. |
+| `image_size` | `cover` \| `contain` | `cover` | `cover` fills the card and crops the picture. |
+| `image_position` | `center` \| `top` \| `bottom` \| `left` \| `right` | `center` | Which part of the picture stays visible. |
+| `image_opacity` | number | `1` | Opacity of the picture, 0 to 1. |
+| `image_dim` | number | `0` | Darkens the picture, 0 to 1, so text stays readable. |
+| `opacity` | number | from preset | 0 = transparent, 1 = opaque. Applies to the background only, not to text. |
+| `blur` | number | from preset | Blur of what lies behind the card in px, 0 to 40. |
+| `radius` | number | from preset | Corner radius in px, 0 to 48. |
+| `border_width` | number | from preset | Border width in px, 0 to 8. |
+| `border_color` | colour | from preset | Colour of the border. |
+| `shadow` | `none` \| `soft` \| `strong` | from preset | Shadow. |
+| `text_color` | colour | theme | Main text colour of the wrapped cards. |
+
+**Background pictures.** With `image` you can use a picture from your `/config/www` folder:
+
+```yaml
+style:
+  preset: dark
+  image: /local/backgrounds/living_room.jpg
+  image_dim: 0.4        # darker, so text stays readable
+  image_position: top
+```
+
+Only paths that start with `/local/` and end in `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.avif` or `.svg` are accepted. Web addresses, `data:` addresses and paths with `..` are ignored and cause no request, so a card configuration cannot pull in content from other sites. Keep in mind that Home Assistant serves everything in `/config/www` **without a login** to anyone who knows the address, so do not use private pictures. Large pictures slow down weak devices, a few hundred kilobytes are enough for a card.
+
+How it works: the card draws its own background layer behind the wrapped cards and sets the background, border and shadow of the Home Assistant cards inside to transparent through CSS variables. This is the supported way to style cards, and no card-mod is needed. It cannot change cards that paint their own opaque background without using Home Assistant's variables, and transparency has no visible effect on cards that are mostly a picture. `blur` is demanding for the graphics of weak devices such as old wall tablets, use it sparingly there.
+
+Only valid CSS colours are accepted, so a `background` such as `url(...)` is ignored and does not make any network request.
 
 ## Running indicator (orbit)
 
