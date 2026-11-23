@@ -3,6 +3,13 @@
 All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/), versions follow [Semantic Versioning](https://semver.org/).
 
+## [0.6.0]
+### Added
+- `style`: layout for the wrapped cards. Presets `glass`, `dark`, `light`, `outline` and `minimal`, plus `background` (colour), `opacity`, `blur`, `radius`, `border_width`, `border_color`, `shadow` (`none`, `soft`, `strong`) and `text_color`. A preset can be chosen and single values overridden. Available as a new collapsible "Layout" section in the editor.
+- Only valid CSS colours are accepted (no `url()` or images), numbers are limited, and choices come from fixed lists.
+- `style`: local background images. New options `image` (a path under `/local/`, so a file in `/config/www`), `image_size` (`cover`, `contain`), `image_position`, `image_opacity` and `image_dim` (darkens the picture so text stays readable). Also available in the editor.
+- Only paths that start with `/local/` and end with an image extension are accepted. External addresses, `data:` URIs, `..` and other paths are rejected and make no request.
+    
 ## [0.5.0]
 ### Added
 - New animation `orbit`: a bright dot with a short tail travels around the frame, to show that something is running (for example a washing machine). `speed` sets the time of one lap (default 4 s). It is CSS only, follows the card's corner radius, and is switched off when the system asks for reduced motion.
