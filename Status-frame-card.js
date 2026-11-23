@@ -1,12 +1,12 @@
 /*!
- * Status Frame Card v0.5.0
+ * Status Frame Card v0.6.0
  * Wrapper-Karte: legt einen regelbasierten Rahmen/Glow/Animation über eine
  * beliebige andere Lovelace-Karte, ohne deren Größe zu verändern.
  * Mehrere Karten wie bei einer Stapelkarte (cards + stack), Konfiguration komplett über den Editor.
  * Neu in 0.4.0: area_overlay – kompakte Area-Karte (festes Seitenverhältnis, Infoleiste als
  * abgedunkeltes Overlay über dem Bild), pro Karte einstellbar, ganz ohne card_mod/Theme.
  */
-const SFC_VERSION = "0.5.0";
+const SFC_VERSION = "0.6.0";
 
 /* Registrierung für den Kartenwähler ganz am Anfang: Der Eintrag existiert auch dann,
    wenn weiter unten etwas schiefgeht, und wird bei doppeltem Laden nicht verdoppelt. */
@@ -78,6 +78,82 @@ const clean = (o) => {
     r[k] = v;
   }
   return r;
+};
+
+/* ---- Layout / Stil (config.style) ----
+   Hintergrund, Transparenz, Weichzeichner, Rand, Schatten und Textfarbe für die umschlossenen Karten.
+   Nur geprüfte Werte: Farben müssen gültige CSS-Farben sein (kein url(), keine Bilder), Zahlen werden
+   begrenzt, Auswahlwerte stammen aus festen Listen. */
+const clampNum = (v, def, min, max) => {
+  const n = Number(v);
+  return has(v) && isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
+};
+
+const safeColor = (v) => {
+  if (typeof v !== "string") return null;
+  const c = v.trim();
+  if (!c || c.length > 120 || /url\s*\(|[;{}<>\\]/i.test(c)) return null;
+  if (typeof CSS !== "undefined" && CSS.supports) return CSS.supports("color", c) ? c : null;
+  return /^(#[0-9a-f]{3,8}|[a-z]+|(rgb|rgba|hsl|hsla)\([0-9\s.,%/-]+\)|var\(--[a-z0-9_-]+\))$/i.test(c) ? c : null;
+};
+
+/* Hintergrundbild: nur Dateien aus dem lokalen Ordner /config/www (URL /local/...).
+   Keine externen Adressen, keine data:-URIs, keine Pfadtricks, nur Bildendungen. */
+const safeLocalImage = (v) => {
+  if (typeof v !== "string") return null;
+  const c = v.trim();
+  if (c.length > 200 || !/^\/local\/[A-Za-z0-9._\-\/]+\.(png|jpe?g|webp|gif|avif|svg)$/i.test(c)) return null;
+  if (c.includes("..") || c.includes("//")) return null;
+  return c;
+};
+
+const STYLE_SHADOWS = {
+  none: "none",
+  soft: "0 4px 16px rgba(0,0,0,.18)",
+  strong: "0 8px 28px rgba(0,0,0,.35)",
+};
+
+const STYLE_PRESETS = {
+  glass: { background: "var(--card-background-color, #1c1c1c)", opacity: 0.35, blur: 16, radius: 16,
+           border_width: 1, border_color: "rgba(255,255,255,.2)", shadow: "soft" },
+  dark: { background: "#121417", opacity: 0.85, blur: 0, radius: 12,
+          border_width: 1, border_color: "rgba(255,255,255,.06)", shadow: "none" },
+  light: { background: "#ffffff", opacity: 0.9, blur: 0, radius: 12,
+           border_width: 1, border_color: "rgba(0,0,0,.08)", shadow: "soft", text_color: "#1b1b1b" },
+  outline: { background: "transparent", opacity: 1, blur: 0, radius: 12,
+             border_width: 1, border_color: "var(--divider-color, rgba(128,128,128,.4))", shadow: "none" },
+  minimal: { background: "transparent", opacity: 1, blur: 0, radius: 12, border_width: 0, shadow: "none" },
+};
+
+/* Liefert die endgültigen, geprüften Werte oder null, wenn kein Layout aktiv ist. */
+const resolveStyle = (st) => {
+  if (!st || typeof st !== "object") return null;
+  const preset = Object.prototype.hasOwnProperty.call(STYLE_PRESETS, st.preset) ? STYLE_PRESETS[st.preset] : null;
+  const keys = ["background", "opacity", "blur", "radius", "border_width", "border_color", "shadow", "text_color"];
+  const image = safeLocalImage(st.image);
+  if (!preset && !image && !keys.some((k) => has(st[k]))) return null;
+  const POS = /^(center|top|bottom|left|right)(\s+(center|top|bottom|left|right))?$/;
+  const base = { ...(preset || {}) };
+  const color = safeColor(st.background) || safeColor(base.background) || "var(--card-background-color, #1c1c1c)";
+  const opacity = clampNum(st.opacity, has(base.opacity) ? base.opacity : 1, 0, 1);
+  const pct = Math.round(opacity * 1000) / 10;
+  const shadowKey = Object.prototype.hasOwnProperty.call(STYLE_SHADOWS, st.shadow) ? st.shadow
+    : Object.prototype.hasOwnProperty.call(STYLE_SHADOWS, base.shadow) ? base.shadow : "none";
+  return {
+    background: opacity >= 1 ? color : `color-mix(in srgb, ${color} ${pct}%, transparent)`,
+    blur: clampNum(st.blur, has(base.blur) ? base.blur : 0, 0, 40),
+    radius: clampNum(st.radius, has(base.radius) ? base.radius : 12, 0, 48),
+    borderWidth: clampNum(st.border_width, has(base.border_width) ? base.border_width : 0, 0, 8),
+    borderColor: safeColor(st.border_color) || safeColor(base.border_color) || "var(--divider-color, rgba(128,128,128,.4))",
+    shadow: STYLE_SHADOWS[shadowKey],
+    textColor: safeColor(st.text_color) || safeColor(base.text_color) || null,
+    image,
+    imageSize: st.image_size === "contain" ? "contain" : "cover",
+    imagePosition: typeof st.image_position === "string" && POS.test(st.image_position.trim().toLowerCase())
+      ? st.image_position.trim().toLowerCase() : "center",
+    imageOpacity: clampNum(st.image_opacity, 1, 0, 1),
+    imageDim: clampNum(st.image_dim, 0, 0, 1),
+  };
 };
 
 /* Overlay-CSS für die Area-Karte von Home Assistant (hui-area-card).
@@ -155,6 +231,11 @@ class StatusFrameCard extends HTMLElement {
         <style>
           :host { display:block; }
           #wrap { position:relative; border-radius:var(--ha-card-border-radius,12px); }
+          /* Layout: eigene Hintergrundebene hinter den Karten (Farbe, Deckkraft, Weichzeichner, Rand, Schatten) */
+          #bg { position:absolute; inset:0; border-radius:inherit; pointer-events:none; z-index:0; display:none; box-sizing:border-box; overflow:hidden; }
+          #bgimg { position:absolute; inset:0; display:none; background-repeat:no-repeat; }
+          #wrap.styled #bg { display:block; }
+          #wrap.styled > :not(#bg):not(#fx):not(#orbit) { position:relative; z-index:1; }
           #fx { position:absolute; inset:0; border-radius:inherit; pointer-events:none;
                 z-index:1; transition:border-color .3s ease, background .3s ease, box-shadow .3s ease;
                 box-sizing:border-box; }
@@ -174,7 +255,7 @@ class StatusFrameCard extends HTMLElement {
           @keyframes sfc-orbit { from { offset-distance:0% } to { offset-distance:100% } }
           @media (prefers-reduced-motion: reduce) { #orbit .dot { animation:none; } }
         </style>
-        <div id="wrap"><div id="fx"></div><div id="orbit"></div></div>`;
+        <div id="wrap"><div id="bg"><div id="bgimg"></div></div><div id="fx"></div><div id="orbit"></div></div>`;
       this._buildOrbit();
     }
     const key = JSON.stringify([this._cards(config), config.stack || "vertical", config.title || ""]);
@@ -182,12 +263,60 @@ class StatusFrameCard extends HTMLElement {
       this._cardKey = key;
       this._buildInner(key);
     }
+    this._applyStyle();
     this._update();
     this._applyOverlay();
   }
 
   connectedCallback() {
     this._applyOverlay();
+  }
+
+  /* Layout anwenden: eigene Hintergrundebene, die umschlossenen HA-Karten werden über
+     CSS-Variablen durchsichtig und randlos gestellt (Variablen vererben sich durch Shadow-DOM). */
+  _applyStyle() {
+    const wrap = this._root?.getElementById("wrap");
+    const bg = this._root?.getElementById("bg");
+    const img = this._root?.getElementById("bgimg");
+    if (!wrap || !bg || !img) return;
+    const vars = ["--ha-card-background", "--ha-card-border-width", "--ha-card-box-shadow",
+                  "--ha-card-border-radius", "--primary-text-color", "--secondary-text-color"];
+    const m = resolveStyle(this._config && this._config.style);
+    this._orbitKey = null; // Eckenradius kann sich geändert haben
+    if (!m) {
+      wrap.classList.remove("styled");
+      vars.forEach((v) => wrap.style.removeProperty(v));
+      bg.removeAttribute("style");
+      img.removeAttribute("style");
+      return;
+    }
+    wrap.classList.add("styled");
+    bg.style.background = m.background;
+    bg.style.backdropFilter = bg.style.webkitBackdropFilter = m.blur > 0 ? `blur(${m.blur}px)` : "none";
+    bg.style.border = m.borderWidth > 0 ? `${m.borderWidth}px solid ${m.borderColor}` : "none";
+    bg.style.boxShadow = m.shadow;
+    if (m.image) {
+      // Der Pfad ist durch safeLocalImage auf harmlose Zeichen beschränkt und kann die Anführungszeichen nicht verlassen
+      const dim = m.imageDim > 0 ? `linear-gradient(rgba(0,0,0,${m.imageDim}), rgba(0,0,0,${m.imageDim})), ` : "";
+      img.style.backgroundImage = `${dim}url("${m.image}")`;
+      img.style.backgroundSize = m.imageDim > 0 ? `100% 100%, ${m.imageSize}` : m.imageSize;
+      img.style.backgroundPosition = m.imageDim > 0 ? `center, ${m.imagePosition}` : m.imagePosition;
+      img.style.opacity = String(m.imageOpacity);
+      img.style.display = "block";
+    } else {
+      img.removeAttribute("style");
+    }
+    wrap.style.setProperty("--ha-card-background", "transparent");
+    wrap.style.setProperty("--ha-card-border-width", "0px");
+    wrap.style.setProperty("--ha-card-box-shadow", "none");
+    wrap.style.setProperty("--ha-card-border-radius", m.radius + "px");
+    if (m.textColor) {
+      wrap.style.setProperty("--primary-text-color", m.textColor);
+      wrap.style.setProperty("--secondary-text-color", `color-mix(in srgb, ${m.textColor} 70%, transparent)`);
+    } else {
+      wrap.style.removeProperty("--primary-text-color");
+      wrap.style.removeProperty("--secondary-text-color");
+    }
   }
 
   /* Lichtpunkt mit Schweif: ein heller Kopf und acht kleinere, blassere Punkte dahinter */
@@ -443,6 +572,13 @@ const LABELS = {
   background: "Hintergrund",
   default_border: "Standard-Rahmen (CSS, optional)",
   stack: "Anordnung bei mehreren Karten",
+  preset: "Layout-Vorlage",
+  opacity: "Deckkraft des Hintergrunds",
+  radius: "Eckenradius (px)",
+  border_width: "Randbreite (px)",
+  border_color: "Randfarbe",
+  shadow: "Schatten",
+  text_color: "Textfarbe",
   enabled: "Area-Overlay aktivieren",
   aspect_ratio: "Seitenverhältnis",
   darken: "Abdunklung der Infoleiste",
@@ -592,6 +728,95 @@ const SCHEMA_OVERLAY = [
   },
 ];
 
+const SCHEMA_STYLE = [
+  {
+    name: "preset",
+    selector: {
+      select: {
+        mode: "dropdown",
+        options: [
+          { value: "none", label: "Kein Layout" },
+          { value: "glass", label: "Glas (durchscheinend)" },
+          { value: "dark", label: "Dunkel" },
+          { value: "light", label: "Hell" },
+          { value: "outline", label: "Nur Rahmen" },
+          { value: "minimal", label: "Ohne Hintergrund" },
+        ],
+      },
+    },
+  },
+  { name: "background", selector: { text: {} } },
+  { name: "image", selector: { text: {} } },
+  {
+    type: "grid", name: "", schema: [
+      {
+        name: "image_size",
+        selector: { select: { mode: "dropdown", options: [
+          { value: "cover", label: "Ausfüllen (zuschneiden)" },
+          { value: "contain", label: "Einpassen" },
+        ] } },
+      },
+      {
+        name: "image_position",
+        selector: { select: { mode: "dropdown", options: [
+          { value: "center", label: "Mitte" }, { value: "top", label: "Oben" }, { value: "bottom", label: "Unten" },
+          { value: "left", label: "Links" }, { value: "right", label: "Rechts" },
+        ] } },
+      },
+      { name: "image_opacity", selector: { number: { min: 0, max: 1, step: 0.05, mode: "slider" } } },
+      { name: "image_dim", selector: { number: { min: 0, max: 1, step: 0.05, mode: "slider" } } },
+    ],
+  },
+  {
+    type: "grid", name: "", schema: [
+      { name: "opacity", selector: { number: { min: 0, max: 1, step: 0.05, mode: "slider" } } },
+      { name: "blur", selector: { number: { min: 0, max: 40, step: 1, mode: "slider" } } },
+      { name: "radius", selector: { number: { min: 0, max: 48, step: 1, mode: "slider" } } },
+      { name: "border_width", selector: { number: { min: 0, max: 8, step: 1, mode: "slider" } } },
+    ],
+  },
+  {
+    type: "grid", name: "", schema: [
+      { name: "border_color", selector: { text: {} } },
+      { name: "text_color", selector: { text: {} } },
+    ],
+  },
+  {
+    name: "shadow",
+    selector: {
+      select: {
+        mode: "dropdown",
+        options: [
+          { value: "none", label: "Kein Schatten" },
+          { value: "soft", label: "Weich" },
+          { value: "strong", label: "Kräftig" },
+        ],
+      },
+    },
+  },
+];
+
+// Eigene Beschriftungen für das Layout (Namen wie "background" und "blur" gibt es auch bei Regeln/Overlay)
+const STYLE_LABELS = {
+  background: "Hintergrundfarbe",
+  blur: "Weichzeichner hinter der Karte (px)",
+  image: "Hintergrundbild (Pfad unter /local/)",
+  image_size: "Bildgröße",
+  image_position: "Bildausschnitt",
+  image_opacity: "Deckkraft des Bildes",
+  image_dim: "Abdunklung des Bildes",
+};
+const STYLE_HELPERS = {
+  background: "Nur Farben, z. B. #1c1c1c, rgb(…) oder var(--card-background-color). Leer = Farbe der Vorlage",
+  opacity: "0 = durchsichtig, 1 = deckend. Wirkt nur auf den Hintergrund, nicht auf Texte",
+  blur: "Weichzeichnet, was hinter der Karte liegt (Glas-Effekt). Kostet auf schwachen Geräten Leistung",
+  border_color: "Nur Farben",
+  text_color: "Nur Farben. Leer = Farbe des Themes",
+  image: "z. B. /local/hintergruende/wohnzimmer.jpg. Nur Dateien aus /config/www. Sie sind ohne Anmeldung abrufbar, also keine privaten Bilder",
+  image_position: "Welcher Teil des Bildes sichtbar bleibt",
+  image_dim: "Dunkelt das Bild ab, damit Texte lesbar bleiben",
+};
+
 const SCHEMA_GENERAL = [
   {
     name: "stack",
@@ -641,9 +866,10 @@ class StatusFrameCardEditor extends HTMLElement {
     this._rules = (this._config.rules || []).map((r) => ({ ...r }));
     this._defaultBorder = this._config.default_border;
     this._overlay = { ...(this._config.area_overlay || {}) };
+    this._style = { ...(this._config.style || {}) };
     this._openIdx = null;
     if (!this._sections)
-      this._sections = { cards: true, rules: true, overlay: this._overlay.enabled === true, general: false };
+      this._sections = { cards: true, rules: true, overlay: this._overlay.enabled === true, style: Object.keys(this._style).length > 0, general: false };
 
     this.innerHTML = `
       <style>
@@ -684,6 +910,13 @@ class StatusFrameCardEditor extends HTMLElement {
             <button class="btn" id="add">+ Regel hinzufügen</button>
           </div>
         </details>
+        <details class="sec" data-k="style" ${this._sections.style ? "open" : ""}>
+          <summary id="sum-style">Layout</summary>
+          <div class="secbody">
+            <p class="hint">Hintergrund, Transparenz, Rand und Schatten der umschlossenen Karten. Eine Vorlage wählen und bei Bedarf einzelne Werte überschreiben.</p>
+            <div id="style"></div>
+          </div>
+        </details>
         <details class="sec" data-k="overlay" ${this._sections.overlay ? "open" : ""}>
           <summary id="sum-overlay">Area-Overlay</summary>
           <div class="secbody">
@@ -708,6 +941,15 @@ class StatusFrameCardEditor extends HTMLElement {
       this._renderRules();
       this._emit();
     });
+
+    const st = this._form(SCHEMA_STYLE, this._style, (v) => {
+      const c = clean(v);
+      if (c.preset === "none") delete c.preset;
+      this._style = c;
+      this._updateBadges();
+      this._emit();
+    }, STYLE_LABELS, STYLE_HELPERS);
+    this.querySelector("#style").append(st);
 
     const ov = this._form(SCHEMA_OVERLAY, this._overlay, (v) => {
       this._overlay = clean(v);
@@ -735,17 +977,22 @@ class StatusFrameCardEditor extends HTMLElement {
   _updateBadges() {
     const r = this.querySelector("#sum-rules");
     if (r) r.textContent = `Regeln (${this._rules.length})`;
+    const l = this.querySelector("#sum-style");
+    if (l) {
+      const keys = Object.keys(this._style || {});
+      l.textContent = `Layout · ${this._style && this._style.preset ? this._style.preset : keys.length ? "eigene Werte" : "aus"}`;
+    }
     const o = this.querySelector("#sum-overlay");
     if (o) o.textContent = `Area-Overlay · ${this._overlay && this._overlay.enabled === true ? "an" : "aus"}`;
   }
 
-  _form(schema, data, onChange) {
+  _form(schema, data, onChange, labels = {}, helpers = {}) {
     const f = document.createElement("ha-form");
     f.schema = schema;
     f.data = data;
     f.hass = this._hass;
-    f.computeLabel = (s) => LABELS[s.name] || s.name;
-    f.computeHelper = (s) => HELPERS[s.name] || "";
+    f.computeLabel = (s) => labels[s.name] || LABELS[s.name] || s.name;
+    f.computeHelper = (s) => helpers[s.name] || HELPERS[s.name] || "";
     f.addEventListener("value-changed", (e) => {
       e.stopPropagation();
       onChange(e.detail.value);
@@ -763,6 +1010,7 @@ class StatusFrameCardEditor extends HTMLElement {
       rules: this._rules.map(clean),
       default_border: this._defaultBorder,
       area_overlay: Object.keys(this._overlay || {}).length ? this._overlay : undefined,
+      style: Object.keys(this._style || {}).length ? this._style : undefined,
     });
     this._config = cfg;
     this._lastEmitted = JSON.stringify(cfg);
