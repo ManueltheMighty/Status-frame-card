@@ -134,6 +134,7 @@ rules:
 | `cards` | Liste | – | Karten im Rahmen. |
 | `stack` | `vertical` \| `horizontal` | `vertical` | Anordnung bei mehr als einer Karte. |
 | `title` | Text | – | Optionale Überschrift über den Karten, wie bei einer Stapelkarte. |
+| `style` | Objekt | – | Layout der umschlossenen Karten, siehe unten. |
 | `rules` | Liste | – | Regeln, die erste passende gewinnt. |
 | `default_border` | CSS | keiner | Rahmen, wenn keine Regel passt, z. B. `1px solid rgba(255,255,255,.1)`. |
 | `card` | Karte | – | Veraltete Einzelkarten-Form von `cards`. |
@@ -156,10 +157,66 @@ rules:
 | `width` | Zahl | `2` | Rahmenbreite in px. |
 | `glow` | Zahl | – | Leuchtradius in px. |
 | `animation` | `none` \| `pulse` \| `blink` \| `glow` \| `breathe` \| `orbit` | `none` | `orbit` lässt einen hellen Punkt um den Rahmen laufen, siehe unten. |
-| `speed` | Zahl | `1.5` | Dauer der Animation in Sekunden. |
+| `speed` | Zahl | `1.5` | Dauer der Animation in Sekunden. Bei `orbit` die Dauer eines Umlaufs (Standard `4`). |
 | `background` | CSS | – | Hintergrund über der Karte, z. B. `rgba(255,0,0,.2)`. |
 
 **So funktioniert die Quelle:** `area`, `domain` und `device_class` bilden einen Filter, den alle erfüllen müssen. `entities` kommen zusätzlich dazu und werden nicht gefiltert. Eine Regel ohne jede Quelle trifft nichts.
+
+## Layout (style)
+
+Mit `style` änderst du das Aussehen der umschlossenen Karten: Hintergrund, Transparenz, Weichzeichner, Ecken, Rand, Schatten und Textfarbe. Du wählst eine Vorlage und überschreibst bei Bedarf einzelne Werte. Ohne `style` ändert sich nichts.
+
+```yaml
+type: custom:status-frame-card
+style:
+  preset: glass
+  opacity: 0.5      # überschreibt die Vorlage
+  radius: 20
+cards:
+  - type: tile
+    entity: light.wohnzimmer
+```
+
+| Vorlage | Aussehen |
+|---|---|
+| `glass` | durchscheinend mit weichgezeichnetem Hintergrund, heller Rand, weicher Schatten |
+| `dark` | dunkel, fast deckend |
+| `light` | heller Hintergrund mit dunklem Text |
+| `outline` | durchsichtig, nur ein dünner Rand |
+| `minimal` | kein Hintergrund, kein Rand, kein Schatten |
+
+| Option | Typ | Standard | Beschreibung |
+|---|---|---|---|
+| `preset` | `glass` \| `dark` \| `light` \| `outline` \| `minimal` | – | Ausgangspunkt. Ohne Vorlage gelten nur die Werte, die du setzt. |
+| `background` | Farbe | aus Vorlage | `#hex`, `rgb(…)`, `hsl(…)` oder `var(--…)`. Nur Farben, keine Bilder. |
+| `image` | Pfad | – | Hintergrundbild aus `/config/www`, geschrieben als `/local/ordner/bild.jpg`. Nur `/local/`-Pfade, keine Webadressen. |
+| `image_size` | `cover` \| `contain` | `cover` | `cover` füllt die Karte und schneidet das Bild zu. |
+| `image_position` | `center` \| `top` \| `bottom` \| `left` \| `right` | `center` | Welcher Teil des Bildes sichtbar bleibt. |
+| `image_opacity` | Zahl | `1` | Deckkraft des Bildes, 0 bis 1. |
+| `image_dim` | Zahl | `0` | Dunkelt das Bild ab, 0 bis 1, damit Texte lesbar bleiben. |
+| `opacity` | Zahl | aus Vorlage | 0 = durchsichtig, 1 = deckend. Wirkt nur auf den Hintergrund, nicht auf Texte. |
+| `blur` | Zahl | aus Vorlage | Weichzeichner für das, was hinter der Karte liegt, in px, 0 bis 40. |
+| `radius` | Zahl | aus Vorlage | Eckenradius in px, 0 bis 48. |
+| `border_width` | Zahl | aus Vorlage | Randbreite in px, 0 bis 8. |
+| `border_color` | Farbe | aus Vorlage | Farbe des Randes. |
+| `shadow` | `none` \| `soft` \| `strong` | aus Vorlage | Schatten. |
+| `text_color` | Farbe | Theme | Haupttextfarbe der umschlossenen Karten. |
+
+**Hintergrundbilder.** Mit `image` nutzt du ein Bild aus deinem Ordner `/config/www`:
+
+```yaml
+style:
+  preset: dark
+  image: /local/hintergruende/wohnzimmer.jpg
+  image_dim: 0.4        # dunkler, damit Texte lesbar bleiben
+  image_position: top
+```
+
+Angenommen werden nur Pfade, die mit `/local/` beginnen und auf `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.avif` oder `.svg` enden. Webadressen, `data:`-Adressen und Pfade mit `..` werden ignoriert und lösen keine Anfrage aus, eine Kartenkonfiguration kann also keine Inhalte von fremden Seiten nachladen. Bedenke, dass Home Assistant alles in `/config/www` **ohne Anmeldung** an jeden ausliefert, der die Adresse kennt. Verwende daher keine privaten Bilder. Große Bilder bremsen schwache Geräte, für eine Karte reichen einige hundert Kilobyte.
+
+So funktioniert es: Die Karte zeichnet eine eigene Hintergrundebene hinter die umschlossenen Karten und stellt Hintergrund, Rand und Schatten der darin liegenden Home-Assistant-Karten über CSS-Variablen auf durchsichtig. Das ist der vorgesehene Weg, Karten zu gestalten, card-mod ist nicht nötig. Es kann Karten nicht ändern, die einen eigenen deckenden Hintergrund malen, ohne die Variablen von Home Assistant zu nutzen, und bei Karten, die vor allem aus einem Bild bestehen, bringt Transparenz optisch nichts. `blur` fordert die Grafik schwacher Geräte wie alter Wand-Tablets, nutze ihn dort sparsam.
+
+Es werden nur gültige CSS-Farben angenommen. Ein `background` wie `url(...)` wird ignoriert und löst keine Netzwerkanfrage aus.
 
 ## Laufanzeige (orbit)
 
